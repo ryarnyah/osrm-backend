@@ -498,16 +498,16 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
         struct PipelineBuffer
         {
-            tbb::blocked_range<NodeID> nodes_range;
+            tbb::blocked_range<NodeID> nodes_range; // use this for guidance
 
-            std::vector<guidance::TurnAnalysis::ShapeResult> intersection_shapes;
+            std::vector<guidance::TurnAnalysis::ShapeResult> intersection_shapes;  // use this for guidance
 
-            std::vector<EdgeWithData> continuous_data;
-            std::vector<EdgeWithData> delayed_data;
+            std::vector<EdgeWithData> continuous_data;  // may need this
+            std::vector<EdgeWithData> delayed_data;  // may need this
             std::vector<Conditional> conditionals;
 
-            std::vector<TurnData> continuous_turn_data;
-            std::vector<TurnData> delayed_turn_data;
+            std::vector<TurnData> continuous_turn_data;  // populate answers from guidance
+            std::vector<TurnData> delayed_turn_data;   // populate answers from guidance
 
             PipelineBuffer(const tbb::blocked_range<NodeID> &range) : nodes_range(range) {}
         };
