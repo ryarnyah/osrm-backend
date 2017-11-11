@@ -16,6 +16,7 @@
 #include "extractor/guidance/turn_instruction.hpp"
 #include "extractor/guidance/turn_lane_types.hpp"
 #include "extractor/intersection_bearings_container.hpp"
+#include "extractor/maneuver_override.hpp"
 #include "extractor/node_data_container.hpp"
 #include "extractor/packed_osm_ids.hpp"
 #include "extractor/profile_properties.hpp"
@@ -203,6 +204,8 @@ class ContiguousInternalMemoryDataFacadeBase : public BaseDataFacade
     util::vector_view<std::size_t> m_datasource_name_offsets;
     util::vector_view<std::size_t> m_datasource_name_lengths;
     util::vector_view<util::guidance::LaneTupleIdPair> m_lane_tupel_id_pairs;
+
+    util::vector_view<extractor::ManeuverOverride> m_maneuver_overrides;
 
     std::unique_ptr<SharedRTree> m_static_rtree;
     std::unique_ptr<SharedGeospatialQuery> m_geospatial_query;
@@ -499,6 +502,15 @@ class ContiguousInternalMemoryDataFacadeBase : public BaseDataFacade
         m_entry_class_table = std::move(entry_class_table);
     }
 
+    void InitializeManeuverOverridePointers(storage::DataLayout &data_layout, char *memory_block)
+    {
+        auto maneuver_overrides_ptr = data_layout.GetBlockPtr<extractor::ManeuverOverride>(
+            memory_block, storage::DataLayout::MANEUVER_OVERRIDES);
+        m_maneuver_overrides = util::vector_view<extractor::ManeuverOverride>(
+            maneuver_overrides_ptr,
+            data_layout.num_entries[storage::DataLayout::MANEUVER_OVERRIDES]);
+    }
+
     void InitializeInternalPointers(storage::DataLayout &data_layout,
                                     char *memory_block,
                                     const std::size_t exclude_index)
@@ -515,6 +527,7 @@ class ContiguousInternalMemoryDataFacadeBase : public BaseDataFacade
         InitializeProfilePropertiesPointer(data_layout, memory_block, exclude_index);
         InitializeRTreePointers(data_layout, memory_block);
         InitializeIntersectionClassPointers(data_layout, memory_block);
+        InitializeManeuverOverridePointers(data_layout, memory_block);
     }
 
   public:
@@ -889,8 +902,13 @@ class ContiguousInternalMemoryDataFacadeBase : public BaseDataFacade
     std::vector<extractor::ManeuverOverride>
     GetOverridesThatStartAt(const NodeID edge_based_node_id) const override final
     {
-        // TODO: Implement me
         std::vector<extractor::ManeuverOverride> results;
+        std::copy_if(m_maneuver_overrides.begin(),
+                     m_maneuver_overrides.end(),
+                     std::back_inserter(results),
+                     [edge_based_node_id](auto & override) {
+                         return override.from_node == edge_based_node_id;
+                     });
         return results;
     }
 };

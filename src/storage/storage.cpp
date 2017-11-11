@@ -18,6 +18,7 @@
 #include "extractor/edge_based_node.hpp"
 #include "extractor/files.hpp"
 #include "extractor/guidance/turn_instruction.hpp"
+#include "extractor/maneuver_override.hpp"
 #include "extractor/original_edge_data.hpp"
 #include "extractor/packed_osm_ids.hpp"
 #include "extractor/profile_properties.hpp"
@@ -474,6 +475,15 @@ void Storage::PopulateLayout(DataLayout &layout)
         const auto lane_tuple_count = lane_data_file.ReadElementCount64();
         layout.SetBlockSize<util::guidance::LaneTupleIdPair>(DataLayout::TURN_LANE_DATA,
                                                              lane_tuple_count);
+    }
+
+    // load maneuver overrides
+    {
+        io::FileReader maneuver_overrides_file(config.GetPath(".osrm.maneuver_overrides"),
+                                               io::FileReader::VerifyFingerprint);
+        const auto number_of_overrides = maneuver_overrides_file.ReadElementCount64();
+        layout.SetBlockSize<extractor::ManeuverOverride>(DataLayout::MANEUVER_OVERRIDES,
+                                                         number_of_overrides);
     }
 
     {
@@ -1080,6 +1090,17 @@ void Storage::PopulateData(const DataLayout &layout, char *memory_ptr)
             customizer::MultiLevelEdgeBasedGraphView graph_view(
                 std::move(node_list), std::move(edge_list), std::move(node_to_offset));
             partition::files::readGraph(config.GetPath(".osrm.mldgr"), graph_view);
+        }
+
+        // load turn duration penalties
+        {
+            io::FileReader maneuver_overrides_file(config.GetPath(".osrm.maneuver_overrides"),
+                                                   io::FileReader::VerifyFingerprint);
+            const auto number_of_overrides = maneuver_overrides_file.ReadElementCount64();
+            const auto maneuver_overrides_ptr =
+                layout.GetBlockPtr<extractor::ManeuverOverride, true>(
+                    memory_ptr, DataLayout::MANEUVER_OVERRIDES);
+            maneuver_overrides_file.ReadInto(maneuver_overrides_ptr, number_of_overrides);
         }
     }
 }
