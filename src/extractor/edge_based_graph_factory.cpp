@@ -212,9 +212,11 @@ void EdgeBasedGraphFactory::Run(ScriptingEnvironment &scripting_environment,
                                 const std::string &turn_penalties_index_filename,
                                 const std::string &cnbg_ebg_mapping_path,
                                 const std::string &conditional_penalties_filename,
+                                const std::string &maneuver_overrides_filename,
                                 const RestrictionMap &node_restriction_map,
                                 const ConditionalRestrictionMap &conditional_node_restriction_map,
-                                const WayRestrictionMap &way_restriction_map)
+                                const WayRestrictionMap &way_restriction_map,
+                                const std::vector<ManeuverOverride> &maneuver_overrides)
 {
     TIMER_START(renumber);
     m_number_of_edge_based_nodes =
@@ -241,9 +243,11 @@ void EdgeBasedGraphFactory::Run(ScriptingEnvironment &scripting_environment,
                               turn_duration_penalties_filename,
                               turn_penalties_index_filename,
                               conditional_penalties_filename,
+                              maneuver_overrides_filename,
                               node_restriction_map,
                               conditional_node_restriction_map,
-                              way_restriction_map);
+                              way_restriction_map,
+                              maneuver_overrides);
 
     TIMER_STOP(generate_edges);
 
@@ -393,10 +397,19 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
     const std::string &turn_duration_penalties_filename,
     const std::string &turn_penalties_index_filename,
     const std::string &conditional_penalties_filename,
+    const std::string &maneuver_overrides_filename,
     const RestrictionMap &node_restriction_map,
     const ConditionalRestrictionMap &conditional_restriction_map,
-    const WayRestrictionMap &way_restriction_map)
+    const WayRestrictionMap &way_restriction_map,
+    const std::vector<ManeuverOverride> &maneuver_overrides)
 {
+
+    // Make a copy so that we can update the node IDs below before
+    // we write them to disk
+    std::vector<ManeuverOverride> mutable_maneuver_overrides(maneuver_overrides.size());
+    std::copy(
+        maneuver_overrides.begin(), maneuver_overrides.end(), mutable_maneuver_overrides.begin());
+    // Sort so  that we can binary search later
 
     util::Log() << "Generating edge-expanded edges ";
 
@@ -761,20 +774,19 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
                             /***************************/
 
-                            /*
-                            boost::optional<ManeuverOverride> find_maneuver_for_edge =
-                                [&](NodeID from, NodeID via, NodeID to) { return boost::none; };
+                            // TODO: sort the list and do binary search/fast fail
+                            auto maneuver_override = std::find_if(
+                                mutable_maneuver_overrides.begin(),
+                                mutable_maneuver_overrides.end(),
+                                [&](const ManeuverOverride & override) {
+                                    return override.from_node ==
+                                           node_along_road_entering && override.via_node_id ==
+                                           node_at_center_of_intersection && override.to_node ==
+                                           m_node_based_graph.GetTarget(turn.eid);
 
-                            // TODO: implement me
-                            auto maneuver_override =
-                                find_maneuver_for_edge(node_along_road_entering,
-                                                       node_at_center_of_intersection,
-                                                       m_node_based_graph.GetTarget(turn.eid));
-                                                       */
+                                });
 
-                            boost::optional<ManeuverOverride> maneuver_override = boost::none;
-
-                            if (maneuver_override)
+                            if (maneuver_override != mutable_maneuver_overrides.end())
                             {
                                 maneuver_override->from_node = nbe_to_ebn_mapping[incoming_edge];
                                 maneuver_override->to_node = target_id;
@@ -905,6 +917,17 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
                 return buffer;
             });
+
+        {
+            util::Log() << "Writing " << mutable_maneuver_overrides.size()
+                        << " maneuver overrides...";
+            // write conditional turn penalties into the restrictions file
+            storage::io::FileWriter writer(maneuver_overrides_filename,
+                                           storage::io::FileWriter::GenerateFingerprint);
+            extractor::serialization::write(writer, mutable_maneuver_overrides);
+        }
+
+        files::writeTurnData(turn_data_filename, turn_data_container);
 
         // Because we write TurnIndexBlock data as we go, we'll
         // buffer them into groups of 1000 to reduce the syscall

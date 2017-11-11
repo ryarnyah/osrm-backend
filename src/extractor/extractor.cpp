@@ -271,6 +271,7 @@ int Extractor::run(ScriptingEnvironment &scripting_environment)
                                traffic_signals,
                                turn_restrictions,
                                conditional_turn_restrictions,
+                               maneuver_overrides,
                                turn_lane_map,
                                scripting_environment,
                                edge_based_nodes_container,
@@ -673,6 +674,7 @@ EdgeID Extractor::BuildEdgeExpandedGraph(
     const std::unordered_set<NodeID> &traffic_signals,
     const std::vector<TurnRestriction> &turn_restrictions,
     const std::vector<ConditionalTurnRestriction> &conditional_turn_restrictions,
+    const std::vector<ManeuverOverride> &maneuver_overrides,
     // might have to be updated to add new lane combinations
     guidance::LaneDescriptionMap &turn_lane_map,
     // for calculating turn penalties
@@ -721,9 +723,11 @@ EdgeID Extractor::BuildEdgeExpandedGraph(
                                      config.GetPath(".osrm.turn_penalties_index").string(),
                                      config.GetPath(".osrm.cnbg_to_ebg").string(),
                                      config.GetPath(".osrm.restrictions").string(),
+                                     config.GetPath(".osrm.maneuver_overrides").string(),
                                      via_node_restriction_map,
                                      conditional_node_restriction_map,
-                                     via_way_restriction_map);
+                                     via_way_restriction_map,
+                                     maneuver_overrides);
         return edge_based_graph_factory.GetNumberOfEdgeBasedNodes();
     };
 
