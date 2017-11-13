@@ -42,22 +42,19 @@ RestrictionCompressor::RestrictionCompressor(
                   conditional_turn_restrictions.end(),
                   index_starts_and_ends);
 
-    auto index_maneuver = [&](auto &element) {
-        maneuver_starts.insert(std::make_pair(element.from_node, &element));
-        maneuver_ends.insert(std::make_pair(element.to_node, &element));
+    auto index_maneuver = [&](auto &maneuver) {
+        maneuver_starts.insert(std::make_pair(maneuver.from_node, &maneuver));
+        maneuver_ends.insert(std::make_pair(maneuver.to_node, &maneuver));
     };
     // !needs to be reference, so we can get the correct address
-    const auto index_maneuver_starts_and_ends = [&](auto &maneuver) { index_maneuver(maneuver); };
-
-    std::for_each(
-        maneuver_overrides.begin(), maneuver_overrides.end(), index_maneuver_starts_and_ends);
+    std::for_each(maneuver_overrides.begin(), maneuver_overrides.end(), [&](auto &maneuver) {
+        index_maneuver(maneuver);
+    });
 }
 
 void RestrictionCompressor::Compress(const NodeID from, const NodeID via, const NodeID to)
 {
-
-    // TODO: do this for maneuvers as well
-
+    // handle turn restrictions
     // extract all startptrs and move them from via to from.
     auto all_starts_range = starts.equal_range(via);
     std::vector<NodeRestriction *> start_ptrs;
@@ -118,6 +115,72 @@ void RestrictionCompressor::Compress(const NodeID from, const NodeID via, const 
 
     const auto reinsert_end = [&](auto ptr) { ends.insert(std::make_pair(ptr->to, ptr)); };
     std::for_each(end_ptrs.begin(), end_ptrs.end(), reinsert_end);
+
+    // handle maneuver overrides from nodes
+    // extract all startptrs
+    auto maneuver_starts_range = maneuver_starts.equal_range(via);
+    std::vector<ManeuverOverride *> mnv_start_ptrs;
+    std::transform(maneuver_starts_range.first,
+                   maneuver_starts_range.second,
+                   std::back_inserter(mnv_start_ptrs),
+                   [](const auto pair) { return pair.second; });
+
+    // update from nodes of maneuver overrides
+    const auto update_start_mnv = [&](auto ptr) {
+        // ____ | from - p.from | via - p.via | to - p.to | ____
+        BOOST_ASSERT(ptr->from_node == via);
+        if (ptr->via_node_id == to)
+        {
+            ptr->from_node = from;
+        }
+        // ____ | to - p.from | via - p.via | from - p.to | ____
+        else
+        {
+            BOOST_ASSERT(ptr->via_node_id == from);
+            ptr->from_node = to;
+        }
+    };
+    std::for_each(mnv_start_ptrs.begin(), mnv_start_ptrs.end(), update_start_mnv);
+
+    // update the ptrs in our mapping
+    maneuver_starts.erase(via);
+    const auto reinsert_start_mnv = [&](auto ptr) {
+        maneuver_starts.insert(std::make_pair(ptr->from_node, ptr));
+    };
+    std::for_each(mnv_start_ptrs.begin(), mnv_start_ptrs.end(), reinsert_start_mnv);
+
+    // handle maneuver override to nodes
+    // extract all end ptrs and move them from via to to
+    auto maneuver_ends_range = maneuver_ends.equal_range(via);
+    std::vector<ManeuverOverride *> mnv_end_ptrs;
+    std::transform(maneuver_ends_range.first,
+                   maneuver_ends_range.second,
+                   std::back_inserter(mnv_end_ptrs),
+                   [](const auto pair) { return pair.second; });
+
+    const auto update_end_mnv = [&](auto ptr) {
+        BOOST_ASSERT(ptr->to_node == via);
+        // p.from | ____ - p.via | from - p.to | via - ____ | to
+        if (ptr->via_node_id == from)
+        {
+            ptr->to_node = to;
+        }
+        // p.from | ____ - p.via | to - p.to | via - ____ | from
+        else
+        {
+            BOOST_ASSERT(ptr->via_node_id == to);
+            ptr->to_node = from;
+        }
+    };
+    std::for_each(mnv_end_ptrs.begin(), mnv_end_ptrs.end(), update_end_mnv);
+
+    // update end ptrs in mapping
+    maneuver_ends.erase(via);
+
+    const auto reinsert_end_mnvs = [&](auto ptr) {
+        maneuver_ends.insert(std::make_pair(ptr->to_node, ptr));
+    };
+    std::for_each(mnv_end_ptrs.begin(), mnv_end_ptrs.end(), reinsert_end_mnvs);
 }
 
 } // namespace extractor
