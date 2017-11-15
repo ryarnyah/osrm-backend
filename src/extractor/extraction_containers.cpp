@@ -795,6 +795,41 @@ void ExtractionContainers::PrepareManeuverOverrides()
                 from_segment_itr->second, to_segment_itr->second, via_node);
         };
 
+    const auto string_to_turn_type = [](const std::string &turn_string) {
+        if (turn_string == "uturn") {
+            return guidance::TurnType::Turn;
+        } else if (turn_string == "continue") {
+            return guidance::TurnType::Continue;
+        } else if (turn_string == "turn") {
+            return guidance::TurnType::Turn;
+        } else if (turn_string == "fork") {
+            return guidance::TurnType::Fork;
+        } else if (turn_string == "suppress") {
+            return guidance::TurnType::Suppressed;
+        } else {
+            return guidance::TurnType::Invalid;
+        }
+    };
+
+    const auto string_to_turn_direction = [](const std::string &direction_string) {
+        if (direction_string == "left") {
+            return guidance::DirectionModifier::Left;
+        } else if (direction_string == "slight_left") {
+            return guidance::DirectionModifier::SlightLeft;
+        } else if (direction_string == "sharp_left") {
+            return guidance::DirectionModifier::SharpLeft;
+        } else if (direction_string == "sharp_right") {
+            return guidance::DirectionModifier::SharpRight;
+        } else if (direction_string == "slight_right") {
+            return guidance::DirectionModifier::SlightRight;
+        } else if (direction_string == "right") {
+            return guidance::DirectionModifier::Right;
+        } else {
+return                                        guidance::DirectionModifier::MaxDirectionModifier;
+    }
+};
+
+
     // Transform an OSMRestriction (based on WayIDs) into an OSRM restriction (base on NodeIDs).
     // Returns true on successful transformation, false in case of invalid references.
     // Based on the auto type deduction, this transfor handles both conditional and unconditional
@@ -805,6 +840,9 @@ void ExtractionContainers::PrepareManeuverOverrides()
         // check if we were able to resolve all the involved ways
         auto maneuver_override =
             get_maneuver_override_from_OSM_ids(external.from, external.to, external.via);
+
+        maneuver_override.override_type = string_to_turn_type(external.maneuver);
+        maneuver_override.direction = string_to_turn_direction(external.direction);
 
         if (!maneuver_override.Valid())
         {

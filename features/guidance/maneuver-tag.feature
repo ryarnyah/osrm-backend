@@ -6,6 +6,30 @@ Feature: Maneuver tag support
         Given the profile "car"
         Given a grid size of 5 meters
 
+    Scenario: simple override #1
+        Given the node map
+            """
+            a--b---c----d---e
+                   |
+                   f
+                   |
+                   g
+            """
+        And the ways
+            | nodes |
+            | abc   |
+            | cde   |
+            | cfg   |
+
+        And the relations
+            | type     | way:from | node:via | way:to | maneuver | direction   |
+            | maneuver | abc      | c        | cfg    | turn     | sharp_right |
+
+        When I route I should get
+            | waypoints | route       | turns                          |
+            | a,g       | abc,cfg,cfg | depart,turn sharp right,arrive |
+
+
     Scenario: Use maneuver tag to announce a particular turn type
         Given the node map
             """

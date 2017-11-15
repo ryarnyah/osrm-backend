@@ -52,6 +52,9 @@ ManeuverOverrideRelationParser::TryParse(const osmium::Relation &relation) const
     // we can trim away the vector after parsing
     InputManeuverOverride maneuver_override;
 
+    maneuver_override.maneuver = relation.tags().get_value_by_key("maneuver","");
+    maneuver_override.direction = relation.tags().get_value_by_key("direction","");
+
     boost::optional<std::uint64_t> from = boost::none, via = boost::none, to = boost::none;
 
     for (const auto &member : relation.members())

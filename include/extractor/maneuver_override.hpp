@@ -14,7 +14,7 @@ struct InputManeuverOverride
     OSMWayID from;
     OSMWayID to;
     OSMNodeID via;
-    std::string type;
+    std::string maneuver;
     std::string direction;
 };
 
@@ -33,8 +33,8 @@ struct ManeuverOverride
     {
         return from_node != SPECIAL_NODEID && to_node != SPECIAL_NODEID &&
                via_node_id != SPECIAL_NODEID &&
-               direction != guidance::DirectionModifier::MaxDirectionModifier &&
-               override_type != guidance::TurnType::Invalid;
+               (direction != guidance::DirectionModifier::MaxDirectionModifier ||
+               override_type != guidance::TurnType::Invalid);
     };
 };
 }
