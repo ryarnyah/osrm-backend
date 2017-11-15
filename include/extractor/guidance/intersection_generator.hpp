@@ -24,6 +24,10 @@ namespace extractor
 namespace guidance
 {
 
+// IntersectionEdge is an alias for incoming and outgoing node-based graph edges of an intersection
+// At the moment it is just an alias for (node id, edge id) pair
+using IntersectionEdge = std::pair<NodeID, EdgeID>;
+
 struct IntersectionGenerationParameters
 {
     NodeID nid;
@@ -97,14 +101,12 @@ class IntersectionGenerator
      */
     OSRM_ATTR_WARN_UNUSED
     IntersectionView
-    TransformIntersectionShapeIntoView(const NodeID previous_node,
-                                       const EdgeID entering_via_edge,
+    TransformIntersectionShapeIntoView(const IntersectionEdge &incoming_edge,
                                        const IntersectionShape &intersection) const;
     // version for normalised intersection
     OSRM_ATTR_WARN_UNUSED
     IntersectionView TransformIntersectionShapeIntoView(
-        const NodeID previous_node,
-        const EdgeID entering_via_edge,
+        const IntersectionEdge &incoming_edge,
         const IntersectionShape &normalised_intersection,
         const IntersectionShape &intersection,
         const std::vector<IntersectionNormalizationOperation> &merging_map) const;

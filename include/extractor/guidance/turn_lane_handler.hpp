@@ -81,7 +81,7 @@ class TurnLaneHandler
     ~TurnLaneHandler();
 
     OSRM_ATTR_WARN_UNUSED
-    Intersection assignTurnLanes(const NodeID at, const EdgeID via_edge, Intersection intersection);
+    Intersection assignTurnLanes(const IntersectionEdge &incoming_edge, Intersection intersection);
 
   private:
     mutable std::atomic<std::size_t> count_handled;

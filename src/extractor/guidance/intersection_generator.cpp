@@ -236,7 +236,7 @@ IntersectionView IntersectionGenerator::GetConnectedRoads(const NodeID from_node
 
     auto intersection = ComputeIntersectionShape(
         node_based_graph.GetTarget(via_eid), boost::none, use_low_precision_angles);
-    return TransformIntersectionShapeIntoView(from_node, via_eid, std::move(intersection));
+    return TransformIntersectionShapeIntoView({from_node, via_eid}, std::move(intersection));
 }
 
 IntersectionGenerationParameters
@@ -278,26 +278,26 @@ IntersectionGenerator::SkipDegreeTwoNodes(const NodeID starting_node, const Edge
 }
 
 IntersectionView IntersectionGenerator::TransformIntersectionShapeIntoView(
-    const NodeID previous_node,
-    const EdgeID entering_via_edge,
-    const IntersectionShape &intersection_shape) const
+    const IntersectionEdge &entering_via_edge, const IntersectionShape &intersection_shape) const
 {
     // requires a copy of the intersection
-    return TransformIntersectionShapeIntoView(previous_node,
-                                              entering_via_edge,
+    return TransformIntersectionShapeIntoView(entering_via_edge,
                                               intersection_shape, // creates a copy
                                               intersection_shape, // reference to local
                                               {}); // empty vector of performed merges
 }
 
 IntersectionView IntersectionGenerator::TransformIntersectionShapeIntoView(
-    const NodeID previous_node,
-    const EdgeID entering_via_edge,
+    const IntersectionEdge &entering_via_edge,
     const IntersectionShape &normalized_intersection,
     const IntersectionShape &intersection,
     const std::vector<IntersectionNormalizationOperation> &performed_merges) const
 {
-    const auto node_at_intersection = node_based_graph.GetTarget(entering_via_edge);
+    NodeID previous_node;
+    EdgeID entering_via_edge_id;
+    std::tie(previous_node, entering_via_edge_id) = entering_via_edge;
+
+    const auto node_at_intersection = node_based_graph.GetTarget(entering_via_edge_id);
 
     // request all turn restrictions
     auto const restrictions = restriction_map.Restrictions(previous_node, node_at_intersection);

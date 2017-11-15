@@ -88,28 +88,29 @@ TurnAnalysis::TurnAnalysis(const util::NodeBasedDynamicGraph &node_based_graph,
 {
 }
 
-Intersection TurnAnalysis::operator()(const NodeID node_prior_to_intersection,
-                                      const EdgeID entering_via_edge) const
+Intersection TurnAnalysis::operator()(const IntersectionEdge &incoming_edge) const
 {
     TurnAnalysis::ShapeResult shape_result =
-        ComputeIntersectionShapes(node_based_graph.GetTarget(entering_via_edge));
+        ComputeIntersectionShapes(node_based_graph.GetTarget(incoming_edge.second));
 
     // assign valid flags to normalized_shape
     const auto intersection_view = intersection_generator.TransformIntersectionShapeIntoView(
-        node_prior_to_intersection,
-        entering_via_edge,
+        incoming_edge,
         shape_result.annotated_normalized_shape.normalized_shape,
         shape_result.intersection_shape,
         shape_result.annotated_normalized_shape.performed_merges);
 
     // assign the turn types to the intersection
-    return AssignTurnTypes(node_prior_to_intersection, entering_via_edge, intersection_view);
+    return AssignTurnTypes(incoming_edge, intersection_view);
 }
 
-Intersection TurnAnalysis::AssignTurnTypes(const NodeID node_prior_to_intersection,
-                                           const EdgeID entering_via_edge,
+Intersection TurnAnalysis::AssignTurnTypes(const IntersectionEdge &incoming_edge,
                                            const IntersectionView &intersection_view) const
 {
+    NodeID node_prior_to_intersection;
+    EdgeID entering_via_edge;
+    std::tie(node_prior_to_intersection, entering_via_edge) = incoming_edge;
+
     // Roundabouts are a main priority. If there is a roundabout instruction present, we process the
     // turn as a roundabout
 
@@ -200,6 +201,21 @@ TurnAnalysis::ComputeIntersectionShapes(const NodeID node_at_center_of_intersect
 
     intersection_shape.annotated_normalized_shape = intersection_normalizer(
         node_at_center_of_intersection, intersection_shape.intersection_shape);
+
+    // Collect incoming edges into the intersection
+    for (const EdgeID outgoing_edge :
+         node_based_graph.GetAdjacentEdgeRange(node_at_center_of_intersection))
+    {
+        const NodeID node_along_road_entering = node_based_graph.GetTarget(outgoing_edge);
+
+        const auto incoming_edge =
+            node_based_graph.FindEdge(node_along_road_entering, node_at_center_of_intersection);
+
+        if (!node_based_graph.GetEdgeData(incoming_edge).reversed)
+        {
+            intersection_shape.incoming_edges.push_back({node_along_road_entering, incoming_edge});
+        }
+    }
 
     return intersection_shape;
 }

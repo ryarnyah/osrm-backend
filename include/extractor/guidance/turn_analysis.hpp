@@ -53,8 +53,7 @@ class TurnAnalysis
     /* Full Analysis Process for a single node/edge combination. Use with caution, as the process is
      * relatively expensive */
     OSRM_ATTR_WARN_UNUSED
-    Intersection operator()(const NodeID node_prior_to_intersection,
-                            const EdgeID entering_via_edge) const;
+    Intersection operator()(const IntersectionEdge &entering_via_edge) const;
 
     /*
      * Returns a normalized intersection without any assigned turn types.
@@ -65,17 +64,20 @@ class TurnAnalysis
     {
         // the basic shape, containing all turns
         IntersectionShape intersection_shape;
+
         // normalized shape, merged some roads into others, adjusted bearings
         // see intersection_normalizer for further explanations
         IntersectionNormalizer::NormalizationResult annotated_normalized_shape;
+
+        // incoming edges into the intersection
+        std::vector<IntersectionEdge> incoming_edges;
     };
     OSRM_ATTR_WARN_UNUSED
     ShapeResult ComputeIntersectionShapes(const NodeID node_at_center_of_intersection) const;
 
     // Select turn types based on the intersection shape
     OSRM_ATTR_WARN_UNUSED
-    Intersection AssignTurnTypes(const NodeID from_node,
-                                 const EdgeID via_eid,
+    Intersection AssignTurnTypes(const IntersectionEdge &entering_via_edge,
                                  const IntersectionView &intersection) const;
 
     const IntersectionGenerator &GetIntersectionGenerator() const;

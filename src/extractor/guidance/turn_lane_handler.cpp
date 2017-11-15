@@ -70,9 +70,13 @@ TurnLaneHandler::~TurnLaneHandler()
     assignment onto the turns.
     For example: (130, turn slight right), (180, ramp straight), (320, turn sharp left).
  */
-Intersection
-TurnLaneHandler::assignTurnLanes(const NodeID at, const EdgeID via_edge, Intersection intersection)
+Intersection TurnLaneHandler::assignTurnLanes(const IntersectionEdge &incoming_edge,
+                                              Intersection intersection)
 {
+    NodeID at;
+    EdgeID via_edge;
+    std::tie(at, via_edge) = incoming_edge;
+
     // if only a uturn exists, there is nothing we can do
     if (intersection.size() == 1)
         return intersection;
@@ -212,8 +216,8 @@ TurnLaneScenario TurnLaneHandler::deduceScenario(const NodeID at,
                                  previous_intersection_view))
     {
         extractLaneData(previous_via_edge, previous_description_id, previous_lane_data);
-        previous_intersection = turn_analysis.AssignTurnTypes(
-            previous_node, previous_via_edge, previous_intersection_view);
+        previous_intersection = turn_analysis.AssignTurnTypes({previous_node, previous_via_edge},
+                                                              previous_intersection_view);
         for (std::size_t road_index = 0; road_index < previous_intersection.size(); ++road_index)
         {
             const auto &road = previous_intersection[road_index];
@@ -560,7 +564,7 @@ std::pair<LaneDataVector, LaneDataVector> TurnLaneHandler::partitionLaneData(
     // find out about the next intersection. To check for valid matches, we also need the turn
     // types. We can skip merging/angle adjustments, though
     const auto next_intersection = turn_analysis.AssignTurnTypes(
-        at, straightmost->eid, turn_analysis.GetIntersectionGenerator()(at, straightmost->eid));
+        {at, straightmost->eid}, turn_analysis.GetIntersectionGenerator()(at, straightmost->eid));
 
     // check where we can match turn lanes
     std::size_t straightmost_tag_index = turn_lane_data.size();

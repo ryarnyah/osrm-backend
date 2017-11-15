@@ -412,7 +412,6 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
     util::Log() << "Generating edge-expanded edges ";
 
-    std::size_t node_based_edge_counter = 0;
     restricted_turns_counter = 0;
     skipped_uturns_counter = 0;
     skipped_barrier_turns_counter = 0;
@@ -530,6 +529,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                 if (current_node < node_count)
                 {
                     auto next_node = std::min(current_node + GRAINSIZE, node_count);
+
                     auto range = tbb::blocked_range<NodeID>(current_node, next_node);
                     current_node = next_node;
                     return std::make_shared<PipelineBuffer>(range);
@@ -671,13 +671,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
             auto &buffer = *buffer_ptr;
 
-            auto intersection_shape = buffer.intersection_shapes.begin();
-            for (auto node_at_center_of_intersection = buffer.nodes_range.begin(),
-                      end = buffer.nodes_range.end();
-                 node_at_center_of_intersection != end;
-                 ++node_at_center_of_intersection, ++intersection_shape)
+            for (const auto &intersection_shape : buffer.intersection_shapes)
             {
-
                 // We capture the thread-local work in these objects, then flush
                 // them in a controlled manner at the end of the parallel range
 
@@ -699,38 +694,28 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                 // From the flags alone, we cannot determine which nodes are connected to
                 // `b` by an outgoing edge. Therefore, we have to search all connected edges for
                 // edges entering `b`
-                for (const EdgeID outgoing_edge :
-                     m_node_based_graph.GetAdjacentEdgeRange(node_at_center_of_intersection))
+                for (const auto &incoming_edge : intersection_shape.incoming_edges)
                 {
-                    const NodeID node_along_road_entering =
-                        m_node_based_graph.GetTarget(outgoing_edge);
-
-                    const auto incoming_edge = m_node_based_graph.FindEdge(
-                        node_along_road_entering, node_at_center_of_intersection);
-
-                    if (m_node_based_graph.GetEdgeData(incoming_edge).reversed)
-                        continue;
-
-                    ++node_based_edge_counter;
+                    const auto node_along_road_entering = incoming_edge.first;
+                    const auto incoming_edge_id = incoming_edge.second;
+                    const auto node_at_center_of_intersection =
+                        m_node_based_graph.GetTarget(incoming_edge_id);
 
                     auto intersection_with_flags_and_angles =
                         turn_analysis.GetIntersectionGenerator().TransformIntersectionShapeIntoView(
-                            node_along_road_entering,
                             incoming_edge,
-                            intersection_shape->annotated_normalized_shape.normalized_shape,
-                            intersection_shape->intersection_shape,
-                            intersection_shape->annotated_normalized_shape.performed_merges);
+                            intersection_shape.annotated_normalized_shape.normalized_shape,
+                            intersection_shape.intersection_shape,
+                            intersection_shape.annotated_normalized_shape.performed_merges);
 
-                    auto intersection =
-                        turn_analysis.AssignTurnTypes(node_along_road_entering,
-                                                      incoming_edge,
-                                                      intersection_with_flags_and_angles);
+                    auto intersection = turn_analysis.AssignTurnTypes(
+                        incoming_edge, intersection_with_flags_and_angles);
 
                     OSRM_ASSERT(intersection.valid(),
                                 m_coordinates[node_at_center_of_intersection]);
 
-                    intersection = turn_lane_handler.assignTurnLanes(
-                        node_along_road_entering, incoming_edge, std::move(intersection));
+                    intersection =
+                        turn_lane_handler.assignTurnLanes(incoming_edge, std::move(intersection));
 
                     // the entry class depends on the turn, so we have to classify the
                     // interesction for
@@ -786,10 +771,10 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
                         { // scope to forget edge_with_data after
                             const auto edge_with_data_and_condition =
-                                generate_edge(nbe_to_ebn_mapping[incoming_edge],
+                                generate_edge(nbe_to_ebn_mapping[incoming_edge_id],
                                               target_id,
                                               node_along_road_entering,
-                                              incoming_edge,
+                                              incoming_edge_id,
                                               node_at_center_of_intersection,
                                               turn.eid,
                                               turn);
@@ -840,7 +825,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                                         generate_edge(NodeID(from_id),
                                                       nbe_to_ebn_mapping[turn.eid],
                                                       node_along_road_entering,
-                                                      incoming_edge,
+                                                      incoming_edge_id,
                                                       node_at_center_of_intersection,
                                                       turn.eid,
                                                       turn);
@@ -872,7 +857,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                                         generate_edge(NodeID(from_id),
                                                       nbe_to_ebn_mapping[turn.eid],
                                                       node_along_road_entering,
-                                                      incoming_edge,
+                                                      incoming_edge_id,
                                                       node_at_center_of_intersection,
                                                       turn.eid,
                                                       turn);
@@ -903,11 +888,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
             auto &buffer = *buffer_ptr;
 
-            auto intersection_shape = buffer.intersection_shapes.begin();
-            for (auto node_at_center_of_intersection = buffer.nodes_range.begin(),
-                      end = buffer.nodes_range.end();
-                 node_at_center_of_intersection != end;
-                 ++node_at_center_of_intersection, ++intersection_shape)
+            for (const auto &intersection_shape : buffer.intersection_shapes)
             {
 
                 // We capture the thread-local work in these objects, then flush
@@ -931,38 +912,28 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                 // From the flags alone, we cannot determine which nodes are connected to
                 // `b` by an outgoing edge. Therefore, we have to search all connected edges for
                 // edges entering `b`
-                for (const EdgeID outgoing_edge :
-                     m_node_based_graph.GetAdjacentEdgeRange(node_at_center_of_intersection))
+                for (const auto &incoming_edge : intersection_shape.incoming_edges)
                 {
-                    const NodeID node_along_road_entering =
-                        m_node_based_graph.GetTarget(outgoing_edge);
-
-                    const auto incoming_edge = m_node_based_graph.FindEdge(
-                        node_along_road_entering, node_at_center_of_intersection);
-
-                    if (m_node_based_graph.GetEdgeData(incoming_edge).reversed)
-                        continue;
-
-                    ++node_based_edge_counter;
+                    const auto node_along_road_entering = incoming_edge.first;
+                    const auto incoming_edge_id = incoming_edge.second;
+                    const auto node_at_center_of_intersection =
+                        m_node_based_graph.GetTarget(incoming_edge_id);
 
                     auto intersection_with_flags_and_angles =
                         turn_analysis.GetIntersectionGenerator().TransformIntersectionShapeIntoView(
-                            node_along_road_entering,
                             incoming_edge,
-                            intersection_shape->annotated_normalized_shape.normalized_shape,
-                            intersection_shape->intersection_shape,
-                            intersection_shape->annotated_normalized_shape.performed_merges);
+                            intersection_shape.annotated_normalized_shape.normalized_shape,
+                            intersection_shape.intersection_shape,
+                            intersection_shape.annotated_normalized_shape.performed_merges);
 
-                    auto intersection =
-                        turn_analysis.AssignTurnTypes(node_along_road_entering,
-                                                      incoming_edge,
-                                                      intersection_with_flags_and_angles);
+                    auto intersection = turn_analysis.AssignTurnTypes(
+                        incoming_edge, intersection_with_flags_and_angles);
 
                     OSRM_ASSERT(intersection.valid(),
                                 m_coordinates[node_at_center_of_intersection]);
 
-                    intersection = turn_lane_handler.assignTurnLanes(
-                        node_along_road_entering, incoming_edge, std::move(intersection));
+                    intersection =
+                        turn_lane_handler.assignTurnLanes(incoming_edge, std::move(intersection));
 
                     // the entry class depends on the turn, so we have to classify the
                     // interesction for
@@ -1177,7 +1148,6 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
     files::writeTurnData(turn_data_filename, turn_data_container);
 
     util::Log() << "Generated " << m_edge_based_node_segments.size() << " edge based node segments";
-    util::Log() << "Node-based graph contains " << node_based_edge_counter << " edges";
     util::Log() << "Edge-expanded graph ...";
     util::Log() << "  contains " << m_edge_based_edge_list.size() << " edges";
     util::Log() << "  skips " << restricted_turns_counter << " turns, "
