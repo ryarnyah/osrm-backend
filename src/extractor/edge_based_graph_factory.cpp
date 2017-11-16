@@ -599,12 +599,14 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
             BOOST_ASSERT(!edge_data1.reversed);
             BOOST_ASSERT(!edge_data2.reversed);
 
+            const auto turn_angle = turn.angle;
+
             // compute weight and duration penalties
             auto is_traffic_light = m_traffic_lights.count(node_at_center_of_intersection);
             ExtractionTurn extracted_turn(
-                turn.angle,
+                turn_angle,
                 m_node_based_graph.GetOutDegree(node_at_center_of_intersection),
-                turn.instruction.direction_modifier == guidance::DirectionModifier::UTurn,
+                guidance::getTurnDirection(turn_angle) == guidance::DirectionModifier::UTurn,
                 is_traffic_light,
                 edge_data1.flags.restricted,
                 edge_data2.flags.restricted,
@@ -716,21 +718,6 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
                     intersection =
                         turn_lane_handler.assignTurnLanes(incoming_edge, std::move(intersection));
-
-                    // the entry class depends on the turn, so we have to classify the
-                    // interesction for
-                    // every edge
-                    const auto turn_classification = classifyIntersection(
-                        intersection, m_coordinates[node_at_center_of_intersection]);
-
-                    const auto bearing_class_id =
-                        bearing_class_hash.ConcurrentFindOrAdd(turn_classification.second);
-
-                    // Note - this is strictly speaking not thread safe, but we know we
-                    // should never be touching the same element twice, so we should
-                    // be fine.
-                    bearing_class_by_node_based_node[node_at_center_of_intersection] =
-                        bearing_class_id;
 
                     // check if we are turning off a via way
                     const auto turning_off_via_way = way_restriction_map.IsViaWay(

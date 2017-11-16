@@ -756,16 +756,24 @@ Feature: Basic Roundabout
         And the ways
            | nodes | junction   | oneway |
            | abcda | roundabout | yes    |
-           | edf   |            |        |
+           | ed    |            |        |
+           | df    |            |        |
            | gch   |            | yes    |
 
         When I route I should get
-           | waypoints | bearings | route           | turns                                                      |
-           | e,f       | 90 90    | edf,edf         | depart,arrive                                              |
-           | e,h       | 90 135   | edf,gch,gch,gch | depart,roundabout-exit-2,exit roundabout straight,arrive   |
-           | g,f       | 45 90    | gch,edf,edf,edf | depart,roundabout-exit-2,exit roundabout right,arrive      |
-           | g,h       | 45 135   | gch,gch,gch     | depart,exit roundabout right,arrive                        |
-           | e,e       | 90 270   | edf,edf,edf     | depart,continue uturn,arrive                               |
+           | waypoints | bearings | route          | turns                                                    |
+           | e,f       | 90 90    | ed,df          | depart,arrive                                            |
+           | e,h       | 90 135   | ed,gch,gch,gch | depart,roundabout-exit-2,exit roundabout straight,arrive |
+           | g,f       | 45 90    | gch,df,df,df   | depart,roundabout-exit-2,exit roundabout right,arrive    |
+           | g,h       | 45 135   | gch,gch,gch    | depart,exit roundabout right,arrive                      |
+
+        # https://www.openstreetmap.org/relation/7684197
+        And the relations
+           | type        | way:from | way:to | node:via | restriction      |
+           | restriction | ed       | df     | d        | only_straight_on |
+
+        When I route I should get
+           | e,e | 90 270 | edf,edf,edf | depart,continue uturn,arrive |
 
     Scenario: CCW and CW roundabouts with overlaps
         Given the node map
