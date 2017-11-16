@@ -404,12 +404,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
     const std::vector<ManeuverOverride> &maneuver_overrides)
 {
 
-    // Make a copy so that we can update the node IDs below before
-    // we write them to disk
-    std::vector<ManeuverOverride> mutable_maneuver_overrides(maneuver_overrides.size());
-    std::copy(
-        maneuver_overrides.begin(), maneuver_overrides.end(), mutable_maneuver_overrides.begin());
-    // Sort so  that we can binary search later
+    // Here's where we store the modified maneuver overrides
+    std::vector<ManeuverOverride> renumbered_maneuver_overrides;
 
     util::Log() << "Generating edge-expanded edges ";
 
@@ -526,6 +522,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
             IntersectionData continuous_data;
             std::vector<EdgeWithData> delayed_data;
             std::vector<Conditional> conditionals;
+            std::vector<ManeuverOverride> maneuver_overrides;
         };
 
         // Generate edges for either artificial nodes or the main graph
@@ -774,22 +771,28 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
                             /***************************/
 
+                            const auto edgetarget = m_node_based_graph.GetTarget(turn.eid);
+
                             // TODO: sort the list and do binary search/fast fail
-                            auto maneuver_override = std::find_if(
-                                mutable_maneuver_overrides.begin(),
-                                mutable_maneuver_overrides.end(),
+                            const auto maneuver_override = std::find_if(
+                                maneuver_overrides.begin(),
+                                maneuver_overrides.end(),
                                 [&](const ManeuverOverride & override) {
                                     return override.from_node ==
                                            node_along_road_entering && override.via_node_id ==
                                            node_at_center_of_intersection && override.to_node ==
-                                           m_node_based_graph.GetTarget(turn.eid);
+                                           edgetarget;
 
                                 });
 
-                            if (maneuver_override != mutable_maneuver_overrides.end())
+                            if (maneuver_override != maneuver_overrides.end())
                             {
-                                maneuver_override->from_node = nbe_to_ebn_mapping[incoming_edge];
-                                maneuver_override->to_node = target_id;
+                                buffer->maneuver_overrides.push_back(
+                                    ManeuverOverride{nbe_to_ebn_mapping[incoming_edge],
+                                                     maneuver_override->via_node_id,
+                                                     target_id,
+                                                     maneuver_override->override_type,
+                                                     maneuver_override->direction});
                             }
 
                             { // scope to forget edge_with_data after
@@ -918,15 +921,6 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                 return buffer;
             });
 
-        {
-            util::Log() << "Writing " << mutable_maneuver_overrides.size()
-                        << " maneuver overrides...";
-            // write conditional turn penalties into the restrictions file
-            storage::io::FileWriter writer(maneuver_overrides_filename,
-                                           storage::io::FileWriter::GenerateFingerprint);
-            extractor::serialization::write(writer, mutable_maneuver_overrides);
-        }
-
         files::writeTurnData(turn_data_filename, turn_data_container);
 
         // Because we write TurnIndexBlock data as we go, we'll
@@ -977,6 +971,11 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
                 delayed_data.insert(
                     delayed_data.end(), buffer->delayed_data.begin(), buffer->delayed_data.end());
+
+                renumbered_maneuver_overrides.insert(renumbered_maneuver_overrides.end(),
+                                                     buffer->maneuver_overrides.begin(),
+                                                     buffer->maneuver_overrides.end());
+
             });
 
         // Now, execute the pipeline.  The value of "5" here was chosen by experimentation
@@ -1006,6 +1005,14 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                                                 turn_indexes_write_buffer.size());
             turn_indexes_write_buffer.clear();
         }
+    }
+    {
+        util::Log() << "Writing " << renumbered_maneuver_overrides.size()
+                    << " maneuver overrides...";
+        // write conditional turn penalties into the restrictions file
+        storage::io::FileWriter writer(maneuver_overrides_filename,
+                                       storage::io::FileWriter::GenerateFingerprint);
+        extractor::serialization::write(writer, renumbered_maneuver_overrides);
     }
 
     util::Log() << "Reunmbering turns";

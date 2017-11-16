@@ -102,6 +102,27 @@ class RouteAPI : public BaseAPI
                                  const std::vector<bool> &source_traversed_in_reverse,
                                  const std::vector<bool> &target_traversed_in_reverse) const
     {
+        for (const auto &a : unpacked_path_segments)
+        {
+            std::cout << "Route: ";
+            std::cout << (source_traversed_in_reverse[0]
+                              ? segment_end_coordinates[0].source_phantom.reverse_segment_id.id
+                              : segment_end_coordinates[0].source_phantom.forward_segment_id.id)
+                      << " ";
+            for (const auto &b : a)
+            {
+                std::cout << "(";
+                std::cout << b.from_edge_based_node << " ";
+                std::cout << static_cast<int>(b.turn_instruction.type) << " ";
+                std::cout << static_cast<int>(b.turn_instruction.direction_modifier) << ") ";
+            }
+            std::cout << (target_traversed_in_reverse[0]
+                              ? segment_end_coordinates[0].target_phantom.reverse_segment_id.id
+                              : segment_end_coordinates[0].target_phantom.forward_segment_id.id)
+                      << " ";
+
+            std::cout << std::endl;
+        }
         std::vector<guidance::RouteLeg> legs;
         std::vector<guidance::LegGeometry> leg_geometries;
         auto number_of_legs = segment_end_coordinates.size();
@@ -196,7 +217,9 @@ class RouteAPI : public BaseAPI
                     for (const extractor::ManeuverOverride &maneuver_relation : overrides)
                     {
                         // check if the to member of the override relation is in the route
-                        std::size_t MAX_MANEUVER_DISTANCE = 5;
+                        // Look ahead up to 5 steps
+                        std::size_t MAX_MANEUVER_DISTANCE =
+                            std::min(5l, std::distance(current_step_it, leg.steps.end()));
                         auto max_steps_fwd = current_step_it + MAX_MANEUVER_DISTANCE;
                         auto to_match = std::find_if(
                             current_step_it, max_steps_fwd, [&maneuver_relation](const auto &step) {

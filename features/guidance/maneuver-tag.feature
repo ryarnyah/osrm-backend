@@ -11,23 +11,24 @@ Feature: Maneuver tag support
             """
             a--b---c----d---e
                    |
-                   f
-                   |
                    g
+                   |
+            h------i--------j
             """
         And the ways
-            | nodes |
-            | abc   |
-            | cde   |
-            | cfg   |
+            | nodes | name     | oneway |
+            | abc   | A Street | yes    |
+            | cde   | B Street | yes    |
+            | cgi   | C Street | no     |
+            | hij   | J Street | no     |
 
         And the relations
             | type     | way:from | node:via | way:to | maneuver | direction   |
-            | maneuver | abc      | c        | cfg    | turn     | sharp_right |
+            | maneuver | abc      | c        | cgi    | turn     | sharp_right |
 
         When I route I should get
             | waypoints | route       | turns                          |
-            | a,g       | abc,cfg,cfg | depart,turn sharp right,arrive |
+            | a,j       | A Street,C Street,J Street,J Street | depart,turn sharp right,turn left,arrive |
 
 
     Scenario: Use maneuver tag to announce a particular turn type
