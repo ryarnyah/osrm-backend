@@ -245,12 +245,13 @@ class RouteAPI : public BaseAPI
                             }
                         }
 
+                        const auto via_node_coords =
+                            BaseAPI::facade.GetCoordinateOfNode(maneuver_relation.via_node_id);
+
                         // search for corresponding via_node in the subsequent geometries
                         auto current_step_copy = current_step_it;
                         for (; current_step_copy != max_steps_fwd; ++current_step_copy)
                         {
-                            auto via_node_coords =
-                                BaseAPI::facade.GetCoordinateOfNode(maneuver_relation.via_node_id);
                             // iterators over geometry of current step
                             auto begin =
                                 leg_geometry.locations.begin() + current_step_copy->geometry_begin;
