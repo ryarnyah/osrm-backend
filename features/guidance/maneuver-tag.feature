@@ -27,8 +27,9 @@ Feature: Maneuver tag support
             | maneuver | abc      | c        | cgi    | turn     | sharp_right |
 
         When I route I should get
-            | waypoints | route       | turns                          |
+            | waypoints | route                               | turns                                    |
             | a,j       | A Street,C Street,J Street,J Street | depart,turn sharp right,turn left,arrive |
+            | b,g       | A Street,C Street,C Street          | depart,turn sharp right,arrive           |
 
 
     Scenario: Use maneuver tag to announce a particular turn type

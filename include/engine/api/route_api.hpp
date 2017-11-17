@@ -210,6 +210,12 @@ class RouteAPI : public BaseAPI
                 for (auto current_step_it = leg.steps.begin(); current_step_it != leg.steps.end();
                      ++current_step_it)
                 {
+                    // TODO: figure out a way to check the
+                    // `phantoms.source_phantom.forward/reverse_segment_id.id`
+                    // before starting looking at the leg.steps entries.
+                    //    first edge_based_node =
+                    //      reversed_source ? phantoms.source_phantom.reverse_segment_id.id
+                    //                      : phantoms.source_phantom.forward_segment_id.id);
                     const auto overrides =
                         BaseAPI::facade.GetOverridesThatStartAt(current_step_it->from_id);
                     if (overrides.empty())
@@ -226,7 +232,18 @@ class RouteAPI : public BaseAPI
                                 return step.from_id == maneuver_relation.to_node;
                             });
                         if (to_match == max_steps_fwd)
-                            continue;
+                        {
+                            // If we didn't match one of the steps, also check if we're near the end
+                            // of the route - if so, check the phantom node ID, it's the last
+                            // edge-based-node in the route sequence
+                            if (MAX_MANEUVER_DISTANCE >= 5 ||
+                                (reversed_target ? phantoms.target_phantom.reverse_segment_id.id
+                                                 : phantoms.target_phantom.forward_segment_id.id) !=
+                                    maneuver_relation.to_node)
+                            {
+                                continue;
+                            }
+                        }
 
                         // search for corresponding via_node in the subsequent geometries
                         auto current_step_copy = current_step_it;
@@ -238,7 +255,7 @@ class RouteAPI : public BaseAPI
                             auto begin =
                                 leg_geometry.locations.begin() + current_step_copy->geometry_begin;
                             auto end =
-                                leg_geometry.locations.end() + current_step_copy->geometry_end;
+                                leg_geometry.locations.begin() + current_step_copy->geometry_end;
                             auto via_match = std::find_if(begin, end, [&](const auto &location) {
                                 return location == via_node_coords;
                             });
@@ -249,13 +266,23 @@ class RouteAPI : public BaseAPI
                             done = true;
                             BOOST_ASSERT(maneuver_relation.override_type !=
                                          extractor::guidance::TurnType::Invalid);
-                            current_step_it->maneuver.instruction.type =
-                                maneuver_relation.override_type;
-                            if (maneuver_relation.direction !=
-                                extractor::guidance::DirectionModifier::MaxDirectionModifier)
+
+                            // Now, if we matched the `via` on this geometry, it's the *next*
+                            // step that needs to be updated - geometry of the current step goes
+                            // away from the current turn location, and the last node in the
+                            // geometry is the location of the next step.
+                            ++current_step_copy;
+                            // Make sure we don't go past the end of the list
+                            if (current_step_copy < leg.steps.end())
                             {
-                                current_step_it->maneuver.instruction.direction_modifier =
-                                    maneuver_relation.direction;
+                                current_step_copy->maneuver.instruction.type =
+                                    maneuver_relation.override_type;
+                                if (maneuver_relation.direction !=
+                                    extractor::guidance::DirectionModifier::MaxDirectionModifier)
+                                {
+                                    current_step_copy->maneuver.instruction.direction_modifier =
+                                        maneuver_relation.direction;
+                                }
                             }
                             break;
                         }
