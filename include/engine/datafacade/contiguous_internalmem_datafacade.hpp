@@ -903,12 +903,24 @@ class ContiguousInternalMemoryDataFacadeBase : public BaseDataFacade
     GetOverridesThatStartAt(const NodeID edge_based_node_id) const override final
     {
         std::vector<extractor::ManeuverOverride> results;
-        std::copy_if(m_maneuver_overrides.begin(),
-                     m_maneuver_overrides.end(),
-                     std::back_inserter(results),
-                     [edge_based_node_id](auto & override) {
-                         return override.from_node == edge_based_node_id;
-                     });
+        // m_maneuver_overrides is a vector sorted by from_node, and there can be
+        // several entries for a given from_node
+        auto found = std::find_first(
+            m_maneuver_overrides.begin(), m_maneuver_overrides.end(), edge_based_node_id);
+
+        if (found != m_maneuver_overrides.end())
+        {
+            results.push_back(*found);
+            ++found;
+
+            // Look at subsequent entries to see if they're the same
+            // from_node
+            while (found != m_maneuver_overrides.end() && found->from_node == edge_based_node_id)
+            {
+                results.push_back(*first);
+                ++found;
+            }
+        }
         return results;
     }
 };
