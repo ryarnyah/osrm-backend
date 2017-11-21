@@ -1,7 +1,10 @@
 #include "extractor/intersection/intersection_analysis.hpp"
 
+#include "util/assert.hpp"
 #include "util/bearing.hpp"
 #include "util/coordinate_calculation.hpp"
+
+#include "extractor/guidance/coordinate_extractor.hpp"
 
 namespace osrm
 {
@@ -38,7 +41,8 @@ IntersectionEdges getOutgoingEdges(const util::NodeBasedDynamicGraph &graph,
 
     for (const auto outgoing_edge : graph.GetAdjacentEdgeRange(intersection_node))
     {
-        if (!graph.GetEdgeData(outgoing_edge).reversed)
+        // TODO: to use TurnAnalysis all outgoing edges are required, to be removed later
+        // if (!graph.GetEdgeData(outgoing_edge).reversed)
         {
             result.push_back({intersection_node, outgoing_edge});
         }
@@ -81,13 +85,25 @@ getEdgeCoordinates(const extractor::CompressedEdgeContainer &compressed_geometri
     return result;
 }
 
-IntersectionEdgeBearings
-getIntersectionBearings(const util::NodeBasedDynamicGraph &graph,
-                        const extractor::CompressedEdgeContainer &compressed_geometries,
-                        const std::vector<util::Coordinate> &node_coordinates,
-                        const NodeID intersection_node)
+IntersectionEdgeGeometries
+getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
+                          const extractor::CompressedEdgeContainer &compressed_geometries,
+                          const std::vector<util::Coordinate> &node_coordinates,
+                          const NodeID intersection_node)
 {
-    IntersectionEdgeBearings result;
+    IntersectionEdgeGeometries result;
+
+    // TODO: keep CoordinateExtractor to reproduce bearings, simplify later
+    const guidance::CoordinateExtractor coordinate_extractor(
+        graph, compressed_geometries, node_coordinates);
+
+    std::uint8_t max_lanes_intersection = 0;
+    for (auto eid : graph.GetAdjacentEdgeRange(intersection_node))
+    {
+        max_lanes_intersection =
+            std::max(max_lanes_intersection,
+                     graph.GetEdgeData(eid).flags.road_classification.GetNumberOfLanes());
+    }
 
     for (const auto outgoing_edge : graph.GetAdjacentEdgeRange(intersection_node))
     {
@@ -97,13 +113,26 @@ getIntersectionBearings(const util::NodeBasedDynamicGraph &graph,
         const auto &geometry = getEdgeCoordinates(
             compressed_geometries, node_coordinates, intersection_node, outgoing_edge, remote_node);
 
-        // TODO: add MergableRoadDetector logic
-        const auto outgoing_bearing =
-            util::coordinate_calculation::bearing(geometry[0], geometry[1]);
+        OSRM_ASSERT(geometry.size() >= 2, node_coordinates[intersection_node]);
 
-        result.push_back({outgoing_edge, static_cast<float>(outgoing_bearing)});
-        result.push_back(
-            {incoming_edge, static_cast<float>(util::bearing::reverse(outgoing_bearing))});
+        const auto initial_bearing =
+            util::coordinate_calculation::bearing(geometry[0], geometry[1]);
+        const auto perceived_bearing = util::coordinate_calculation::bearing(
+            geometry[0],
+            coordinate_extractor.ExtractRepresentativeCoordinate(intersection_node,
+                                                                 outgoing_edge,
+                                                                 false,
+                                                                 remote_node,
+                                                                 max_lanes_intersection,
+                                                                 geometry));
+
+        // TODO: add MergableRoadDetector logic
+
+        const auto edge_length = util::coordinate_calculation::getLength(
+            geometry.begin(), geometry.end(), util::coordinate_calculation::haversineDistance);
+
+        result.push_back({outgoing_edge, perceived_bearing, edge_length});
+        result.push_back({incoming_edge, util::bearing::reverse(perceived_bearing), edge_length});
 
         // for (auto x : geometry)
         //     std::cout << x << ", ";
@@ -119,22 +148,32 @@ getIntersectionBearings(const util::NodeBasedDynamicGraph &graph,
     return result;
 }
 
-auto findEdgeBearing(const IntersectionEdgeBearings &bearings, const EdgeID &edge)
+inline auto findEdge(const IntersectionEdgeGeometries &geometries, const EdgeID &edge)
 {
     const auto it = std::lower_bound(
-        bearings.begin(), bearings.end(), edge, [](const auto &edge_bearing, const auto edge) {
-            return edge_bearing.edge < edge;
+        geometries.begin(), geometries.end(), edge, [](const auto &geometry, const auto edge) {
+            return geometry.edge < edge;
         });
-    BOOST_ASSERT(it != bearings.end() && it->edge == edge);
-    return it->bearing;
+    BOOST_ASSERT(it != geometries.end() && it->edge == edge);
+    return it;
 }
 
-double computeTurnAngle(const IntersectionEdgeBearings &bearings,
+double findEdgeBearing(const IntersectionEdgeGeometries &geometries, const EdgeID &edge)
+{
+    return findEdge(geometries, edge)->bearing;
+}
+
+double findEdgeLength(const IntersectionEdgeGeometries &geometries, const EdgeID &edge)
+{
+    return findEdge(geometries, edge)->length;
+}
+
+double computeTurnAngle(const IntersectionEdgeGeometries &geometries,
                         const IntersectionEdge &from,
                         const IntersectionEdge &to)
 {
-    return util::bearing::angleBetween(findEdgeBearing(bearings, from.edge),
-                                       findEdgeBearing(bearings, to.edge));
+    return util::bearing::angleBetween(findEdgeBearing(geometries, from.edge),
+                                       findEdgeBearing(geometries, to.edge));
 }
 
 template <typename RestrictionsRange>
@@ -164,12 +203,16 @@ bool isTurnAllowed(const util::NodeBasedDynamicGraph &graph,
                    const EdgeBasedNodeDataContainer &node_data_container,
                    const RestrictionMap &restriction_map,
                    const std::unordered_set<NodeID> &barrier_nodes,
-                   const IntersectionEdgeBearings &bearings,
+                   const IntersectionEdgeGeometries &geometries,
                    const guidance::TurnLanesIndexedArray &turn_lanes_data,
                    const IntersectionEdge &from,
                    const IntersectionEdge &to)
 {
     BOOST_ASSERT(graph.GetTarget(from.edge) == to.node);
+
+    // TODO: to use TurnAnalysis all outgoing edges are required, to be removed later
+    if (graph.GetEdgeData(from.edge).reversed || graph.GetEdgeData(to.edge).reversed)
+        return false;
 
     const auto intersection_node = to.node;
     const auto destination_node = graph.GetTarget(to.edge);
@@ -181,7 +224,7 @@ bool isTurnAllowed(const util::NodeBasedDynamicGraph &graph,
 
     // Precompute reversed bearing of the `from` edge
     const auto from_edge_reversed_bearing =
-        util::bearing::reverse(findEdgeBearing(bearings, from.edge));
+        util::bearing::reverse(findEdgeBearing(geometries, from.edge));
 
     // Collect some information about the intersection
     // 1) number of allowed exits and adjacent bidirectional edges
@@ -210,7 +253,7 @@ bool isTurnAllowed(const util::NodeBasedDynamicGraph &graph,
                 // "Linked Roundabouts" is an example of tie between two linked roundabouts
                 // A tie breaker for that maximizes ∠(roundabout_from_bearing, ¬from_edge_bearing)
                 const auto angle = util::bearing::angleBetween(
-                    findEdgeBearing(bearings, reverse_edge), from_edge_reversed_bearing);
+                    findEdgeBearing(geometries, reverse_edge), from_edge_reversed_bearing);
                 if (angle > roundabout_from_angle)
                 {
                     roundabout_from = reverse_edge;
@@ -221,7 +264,7 @@ bool isTurnAllowed(const util::NodeBasedDynamicGraph &graph,
             {
                 // a tie breaker that maximizes ∠(¬from_edge_bearing, roundabout_to_bearing)
                 const auto angle = util::bearing::angleBetween(from_edge_reversed_bearing,
-                                                               findEdgeBearing(bearings, eid));
+                                                               findEdgeBearing(geometries, eid));
                 if (angle > roundabout_to_angle)
                 {
                     roundabout_to = eid;
@@ -281,9 +324,9 @@ bool isTurnAllowed(const util::NodeBasedDynamicGraph &graph,
     if (roundabout_from != SPECIAL_EDGEID && roundabout_to != SPECIAL_EDGEID)
     {
         // Get bearings of edges
-        const auto roundabout_from_bearing = findEdgeBearing(bearings, roundabout_from);
-        const auto roundabout_to_bearing = findEdgeBearing(bearings, roundabout_to);
-        const auto to_bearing = findEdgeBearing(bearings, to.edge);
+        const auto roundabout_from_bearing = findEdgeBearing(geometries, roundabout_from);
+        const auto roundabout_to_bearing = findEdgeBearing(geometries, roundabout_to);
+        const auto to_bearing = findEdgeBearing(geometries, to.edge);
 
         // Get angles from the roundabout edge to three other edges
         const auto roundabout_angle =

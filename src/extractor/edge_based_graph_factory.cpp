@@ -665,56 +665,136 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
                     int new_turns = 0, old_turns = 0;
 
-                    // std::cout << "=== node_at_center_of_intersection "
-                    //           << node_at_center_of_intersection << "\n";
+                    // We capture the thread-local work in these objects, then flush
+                    // them in a controlled manner at the end of the parallel range
+
+                    std::cout << "=== node_at_center_of_intersection "
+                              << node_at_center_of_intersection << "\n";
                     const auto &incoming_edges = intersection::getIncomingEdges(
                         m_node_based_graph, node_at_center_of_intersection);
                     const auto &outgoing_edges = intersection::getOutgoingEdges(
                         m_node_based_graph, node_at_center_of_intersection);
-                    const auto &edge_bearings =
-                        intersection::getIntersectionBearings(m_node_based_graph,
-                                                              m_compressed_edge_container,
-                                                              m_coordinates,
-                                                              node_at_center_of_intersection);
+                    const auto &edge_geometries =
+                        intersection::getIntersectionGeometries(m_node_based_graph,
+                                                                m_compressed_edge_container,
+                                                                m_coordinates,
+                                                                node_at_center_of_intersection);
+
+                    // TODO: keep shape_result for comparison, to be removed later
+                    const auto shape_result =
+                        turn_analysis.ComputeIntersectionShapes(node_at_center_of_intersection);
 
                     // std::cout << "=== new turns \n";
                     for (const auto &incoming_edge : incoming_edges)
                     {
+                        // TODO: compute intersection_with_flags_and_angles to compare, to remove
+                        auto intersection_with_flags_and_angles_old =
+                            turn_analysis.GetIntersectionGenerator()
+                                .TransformIntersectionShapeIntoView(
+                                    incoming_edge.node,
+                                    incoming_edge.edge,
+                                    shape_result.annotated_normalized_shape.normalized_shape,
+                                    shape_result.intersection_shape,
+                                    shape_result.annotated_normalized_shape.performed_merges);
+
+                        guidance::IntersectionView intersection_with_flags_and_angles_new;
+
                         for (const auto &outgoing_edge : outgoing_edges)
                         {
                             const auto turn_angle = intersection::computeTurnAngle(
-                                edge_bearings, incoming_edge, outgoing_edge);
+                                edge_geometries, incoming_edge, outgoing_edge);
 
-                            // std::cout << incoming_edge.node << "," << incoming_edge.edge << " -> "
-                            //           << outgoing_edge.node << "," << outgoing_edge.edge << " -> "
+                            // std::cout << incoming_edge.node << "," << incoming_edge.edge << " ->
+                            // "
+                            //           << outgoing_edge.node << "," << outgoing_edge.edge << " ->
+                            //           "
                             //           << m_node_based_graph.GetTarget(outgoing_edge.edge)
                             //           << " is allowed "
                             //           << intersection::isTurnAllowed(m_node_based_graph,
                             //                                          m_edge_based_node_container,
                             //                                          node_restriction_map,
                             //                                          m_barrier_nodes,
-                            //                                          edge_bearings,
+                            //                                          edge_geometries,
                             //                                          turn_lanes_data,
                             //                                          incoming_edge,
                             //                                          outgoing_edge)
                             //           << " angle " << turn_angle << "\n";
 
-                            new_turns += intersection::isTurnAllowed(m_node_based_graph,
-                                                                     m_edge_based_node_container,
-                                                                     node_restriction_map,
-                                                                     m_barrier_nodes,
-                                                                     edge_bearings,
-                                                                     turn_lanes_data,
-                                                                     incoming_edge,
-                                                                     outgoing_edge);
+                            auto is_turn_allowed =
+                                intersection::isTurnAllowed(m_node_based_graph,
+                                                            m_edge_based_node_container,
+                                                            node_restriction_map,
+                                                            m_barrier_nodes,
+                                                            edge_geometries,
+                                                            turn_lanes_data,
+                                                            incoming_edge,
+                                                            outgoing_edge);
+
+                            intersection_with_flags_and_angles_new.push_back(
+                                {{outgoing_edge.edge,
+                                  findEdgeBearing(edge_geometries, outgoing_edge.edge),
+                                  findEdgeLength(edge_geometries, outgoing_edge.edge)},
+                                 is_turn_allowed,
+                                 turn_angle});
+
+                            new_turns += is_turn_allowed;
+                        }
+
+                        std::sort(
+                            intersection_with_flags_and_angles_new.begin(),
+                            intersection_with_flags_and_angles_new.end(),
+                            [](const auto &lhs, const auto &rhs) { return lhs.angle < rhs.angle; });
+
+                        std::cout << "old view\n";
+                        for (auto x : intersection_with_flags_and_angles_old)
+                            std::cout << x.eid << " " << x.bearing << " " << x.segment_length << " "
+                                      << x.entry_allowed << " " << x.angle << "\n";
+
+                        std::cout << "new view\n";
+                        for (auto x : intersection_with_flags_and_angles_new)
+                            std::cout << x.eid << " " << x.bearing << " " << x.segment_length << " "
+                                      << x.entry_allowed << " " << x.angle << "\n";
+
+                        BOOST_ASSERT(
+                            intersection_with_flags_and_angles_old.size() +
+                                shape_result.annotated_normalized_shape.performed_merges.size() ==
+                            intersection_with_flags_and_angles_new.size());
+                        for (std::size_t i = 0, j = 0;
+                             i < intersection_with_flags_and_angles_new.size();
+                             ++i)
+                        {
+                            if (std::find_if(
+                                    shape_result.annotated_normalized_shape.performed_merges
+                                        .begin(),
+                                    shape_result.annotated_normalized_shape.performed_merges.end(),
+                                    [y = intersection_with_flags_and_angles_new[i].eid](
+                                        const auto x) { return x.merged_eid == y; }) !=
+                                shape_result.annotated_normalized_shape.performed_merges.end())
+                            {
+                                BOOST_ASSERT(
+                                    !intersection_with_flags_and_angles_new[i].entry_allowed);
+                                continue;
+                            }
+                            BOOST_ASSERT(intersection_with_flags_and_angles_old[j].eid ==
+                                         intersection_with_flags_and_angles_new[i].eid);
+                            BOOST_ASSERT(
+                                std::fabs(intersection_with_flags_and_angles_old[j].bearing -
+                                          intersection_with_flags_and_angles_new[i].bearing) <
+                                1e-4);
+                            BOOST_ASSERT(
+                                std::fabs(
+                                    intersection_with_flags_and_angles_old[j].segment_length -
+                                    intersection_with_flags_and_angles_new[i].segment_length) /
+                                    intersection_with_flags_and_angles_old[i].segment_length <
+                                1e-6);
+                            BOOST_ASSERT(intersection_with_flags_and_angles_old[j].entry_allowed ==
+                                         intersection_with_flags_and_angles_new[i].entry_allowed);
+                            BOOST_ASSERT(
+                                std::fabs(intersection_with_flags_and_angles_old[j].angle -
+                                          intersection_with_flags_and_angles_new[i].angle) < 1e-4);
+                            ++j;
                         }
                     }
-
-                    // We capture the thread-local work in these objects, then flush
-                    // them in a controlled manner at the end of the parallel range
-
-                    const auto shape_result =
-                        turn_analysis.ComputeIntersectionShapes(node_at_center_of_intersection);
 
                     // all nodes in the graph are connected in both directions. We check all
                     // outgoing nodes to find the incoming edge. This is a larger search overhead,
@@ -865,11 +945,14 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             // turn analysis multiple times.
                             // if (turning_off_via_way)
                             // {
-                            //     const auto duplicated_nodes = way_restriction_map.DuplicatedNodeIDs(
+                            //     const auto duplicated_nodes =
+                            //     way_restriction_map.DuplicatedNodeIDs(
                             //         node_along_road_entering, node_at_center_of_intersection);
 
-                            //     // next to the normal restrictions tracked in `entry_allowed`, via
-                            //     // ways might introduce additional restrictions. These are handled
+                            //     // next to the normal restrictions tracked in `entry_allowed`,
+                            //     via
+                            //     // ways might introduce additional restrictions. These are
+                            //     handled
                             //     // here when turning off a via-way
                             //     for (auto duplicated_node_id : duplicated_nodes)
                             //     {
@@ -881,12 +964,14 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             //         auto const node_at_end_of_turn =
                             //             m_node_based_graph.GetTarget(turn.eid);
 
-                            //         const auto is_way_restricted = way_restriction_map.IsRestricted(
+                            //         const auto is_way_restricted =
+                            //         way_restriction_map.IsRestricted(
                             //             duplicated_node_id, node_at_end_of_turn);
 
                             //         if (is_way_restricted)
                             //         {
-                            //             auto const restriction = way_restriction_map.GetRestriction(
+                            //             auto const restriction =
+                            //             way_restriction_map.GetRestriction(
                             //                 duplicated_node_id, node_at_end_of_turn);
 
                             //             if (restriction.condition.empty())
@@ -1007,7 +1092,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                 }
 
                 // delayed_data.insert(
-                //     delayed_data.end(), buffer->delayed_data.begin(), buffer->delayed_data.end());
+                //     delayed_data.end(), buffer->delayed_data.begin(),
+                //     buffer->delayed_data.end());
             });
 
         // Now, execute the pipeline.  The value of "5" here was chosen by experimentation
@@ -1018,7 +1104,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
         tbb::parallel_pipeline(tbb::task_scheduler_init::default_num_threads() * 5,
                                generator_stage & processor_stage & output_stage);
 
-        // std::sort(delayed_data.begin(), delayed_data.end(), [](auto const &lhs, auto const &rhs) {
+        // std::sort(delayed_data.begin(), delayed_data.end(), [](auto const &lhs, auto const &rhs)
+        // {
         //     return lhs.edge.source < rhs.edge.source;
         // });
         // auto const transfer_data = [&](auto const &edge_with_data) {

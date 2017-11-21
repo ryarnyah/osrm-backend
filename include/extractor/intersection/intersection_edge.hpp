@@ -26,15 +26,16 @@ struct IntersectionEdge
 
 using IntersectionEdges = std::vector<IntersectionEdge>;
 
-struct IntersectionEdgeBearing
+struct IntersectionEdgeGeometry
 {
     EdgeID edge;
-    float bearing;
+    double bearing;
+    double length; // TODO: check if needed here
 
-    bool operator<(const IntersectionEdgeBearing &other) const { return edge < other.edge; }
+    bool operator<(const IntersectionEdgeGeometry &other) const { return edge < other.edge; }
 };
 
-using IntersectionEdgeBearings = std::vector<IntersectionEdgeBearing>;
+using IntersectionEdgeGeometries = std::vector<IntersectionEdgeGeometry>;
 }
 }
 }
