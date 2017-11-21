@@ -105,14 +105,14 @@ getIntersectionBearings(const util::NodeBasedDynamicGraph &graph,
         result.push_back(
             {incoming_edge, static_cast<float>(util::bearing::reverse(outgoing_bearing))});
 
-        for (auto x : geometry)
-            std::cout << x << ", ";
-        std::cout << "\n";
+        // for (auto x : geometry)
+        //     std::cout << x << ", ";
+        // std::cout << "\n";
     }
 
-    for (auto x : result)
-        std::cout << x.edge << "," << x.bearing << ";   ";
-    std::cout << "\n";
+    // for (auto x : result)
+    //     std::cout << x.edge << "," << x.bearing << ";   ";
+    // std::cout << "\n";
 
     // Enforce ordering of edges
     std::sort(result.begin(), result.end());

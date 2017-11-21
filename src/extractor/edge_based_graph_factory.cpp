@@ -406,7 +406,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
     const std::string &conditional_penalties_filename,
     const RestrictionMap &node_restriction_map,
     const ConditionalRestrictionMap &conditional_restriction_map,
-    const WayRestrictionMap &way_restriction_map)
+    const WayRestrictionMap &)
 {
 
     util::Log() << "Generating edge-expanded edges ";
@@ -665,8 +665,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
 
                     int new_turns = 0, old_turns = 0;
 
-                    std::cout << "=== node_at_center_of_intersection "
-                              << node_at_center_of_intersection << "\n";
+                    // std::cout << "=== node_at_center_of_intersection "
+                    //           << node_at_center_of_intersection << "\n";
                     const auto &incoming_edges = intersection::getIncomingEdges(
                         m_node_based_graph, node_at_center_of_intersection);
                     const auto &outgoing_edges = intersection::getOutgoingEdges(
@@ -677,7 +677,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                                                               m_coordinates,
                                                               node_at_center_of_intersection);
 
-                    std::cout << "=== new turns \n";
+                    // std::cout << "=== new turns \n";
                     for (const auto &incoming_edge : incoming_edges)
                     {
                         for (const auto &outgoing_edge : outgoing_edges)
@@ -685,19 +685,19 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             const auto turn_angle = intersection::computeTurnAngle(
                                 edge_bearings, incoming_edge, outgoing_edge);
 
-                            std::cout << incoming_edge.node << "," << incoming_edge.edge << " -> "
-                                      << outgoing_edge.node << "," << outgoing_edge.edge << " -> "
-                                      << m_node_based_graph.GetTarget(outgoing_edge.edge)
-                                      << " is allowed "
-                                      << intersection::isTurnAllowed(m_node_based_graph,
-                                                                     m_edge_based_node_container,
-                                                                     node_restriction_map,
-                                                                     m_barrier_nodes,
-                                                                     edge_bearings,
-                                                                     turn_lanes_data,
-                                                                     incoming_edge,
-                                                                     outgoing_edge)
-                                      << " angle " << turn_angle << "\n";
+                            // std::cout << incoming_edge.node << "," << incoming_edge.edge << " -> "
+                            //           << outgoing_edge.node << "," << outgoing_edge.edge << " -> "
+                            //           << m_node_based_graph.GetTarget(outgoing_edge.edge)
+                            //           << " is allowed "
+                            //           << intersection::isTurnAllowed(m_node_based_graph,
+                            //                                          m_edge_based_node_container,
+                            //                                          node_restriction_map,
+                            //                                          m_barrier_nodes,
+                            //                                          edge_bearings,
+                            //                                          turn_lanes_data,
+                            //                                          incoming_edge,
+                            //                                          outgoing_edge)
+                            //           << " angle " << turn_angle << "\n";
 
                             new_turns += intersection::isTurnAllowed(m_node_based_graph,
                                                                      m_edge_based_node_container,
@@ -734,7 +734,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                     // From the flags alone, we cannot determine which nodes are connected to
                     // `b` by an outgoing edge. Therefore, we have to search all connected edges for
                     // edges entering `b`
-                    std::cout << "=== old turns \n";
+                    // std::cout << "=== old turns \n";
 
                     for (const EdgeID outgoing_edge :
                          m_node_based_graph.GetAdjacentEdgeRange(node_at_center_of_intersection))
@@ -788,9 +788,9 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                         bearing_class_by_node_based_node[node_at_center_of_intersection] =
                             bearing_class_id;
 
-                        // check if we are turning off a via way
-                        const auto turning_off_via_way = way_restriction_map.IsViaWay(
-                            node_along_road_entering, node_at_center_of_intersection);
+                        // // check if we are turning off a via way
+                        // const auto turning_off_via_way = way_restriction_map.IsViaWay(
+                        //     node_along_road_entering, node_at_center_of_intersection);
 
                         for (const auto &turn : intersection)
                         {
@@ -799,9 +799,9 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                                 continue;
 
                             old_turns += 1;
-                            std::cout << node_along_road_entering << " -> "
-                                      << node_at_center_of_intersection << " -> "
-                                      << m_node_based_graph.GetTarget(turn.eid) << "\n";
+                            // std::cout << node_along_road_entering << " -> "
+                            //           << node_at_center_of_intersection << " -> "
+                            //           << m_node_based_graph.GetTarget(turn.eid) << "\n";
 
                             // In case a way restriction starts at a given location, add a turn onto
                             // every artificial node eminating here.
@@ -823,17 +823,17 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             // the id of the edge-based-node for the target to the ID of the
                             // duplicated node associated with the turn. (e.g. ab via bc switches bc
                             // to bc_dup)
-                            auto const target_id = way_restriction_map.RemapIfRestricted(
-                                nbe_to_ebn_mapping[turn.eid],
-                                node_along_road_entering,
-                                node_at_center_of_intersection,
-                                m_node_based_graph.GetTarget(turn.eid),
-                                m_number_of_edge_based_nodes);
+                            // auto const target_id = way_restriction_map.RemapIfRestricted(
+                            //     nbe_to_ebn_mapping[turn.eid],
+                            //     node_along_road_entering,
+                            //     node_at_center_of_intersection,
+                            //     m_node_based_graph.GetTarget(turn.eid),
+                            //     m_number_of_edge_based_nodes);
 
                             { // scope to forget edge_with_data after
                                 const auto edge_with_data_and_condition =
                                     generate_edge(nbe_to_ebn_mapping[incoming_edge],
-                                                  target_id,
+                                                  nbe_to_ebn_mapping[turn.eid],
                                                   node_along_road_entering,
                                                   incoming_edge,
                                                   node_at_center_of_intersection,
@@ -863,96 +863,96 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             // handle the normal edges for the way, but also add turns for every
                             // duplicated node. This process is integrated here to avoid doing the
                             // turn analysis multiple times.
-                            if (turning_off_via_way)
-                            {
-                                const auto duplicated_nodes = way_restriction_map.DuplicatedNodeIDs(
-                                    node_along_road_entering, node_at_center_of_intersection);
+                            // if (turning_off_via_way)
+                            // {
+                            //     const auto duplicated_nodes = way_restriction_map.DuplicatedNodeIDs(
+                            //         node_along_road_entering, node_at_center_of_intersection);
 
-                                // next to the normal restrictions tracked in `entry_allowed`, via
-                                // ways might introduce additional restrictions. These are handled
-                                // here when turning off a via-way
-                                for (auto duplicated_node_id : duplicated_nodes)
-                                {
-                                    const auto from_id =
-                                        m_number_of_edge_based_nodes -
-                                        way_restriction_map.NumberOfDuplicatedNodes() +
-                                        duplicated_node_id;
+                            //     // next to the normal restrictions tracked in `entry_allowed`, via
+                            //     // ways might introduce additional restrictions. These are handled
+                            //     // here when turning off a via-way
+                            //     for (auto duplicated_node_id : duplicated_nodes)
+                            //     {
+                            //         const auto from_id =
+                            //             m_number_of_edge_based_nodes -
+                            //             way_restriction_map.NumberOfDuplicatedNodes() +
+                            //             duplicated_node_id;
 
-                                    auto const node_at_end_of_turn =
-                                        m_node_based_graph.GetTarget(turn.eid);
+                            //         auto const node_at_end_of_turn =
+                            //             m_node_based_graph.GetTarget(turn.eid);
 
-                                    const auto is_way_restricted = way_restriction_map.IsRestricted(
-                                        duplicated_node_id, node_at_end_of_turn);
+                            //         const auto is_way_restricted = way_restriction_map.IsRestricted(
+                            //             duplicated_node_id, node_at_end_of_turn);
 
-                                    if (is_way_restricted)
-                                    {
-                                        auto const restriction = way_restriction_map.GetRestriction(
-                                            duplicated_node_id, node_at_end_of_turn);
+                            //         if (is_way_restricted)
+                            //         {
+                            //             auto const restriction = way_restriction_map.GetRestriction(
+                            //                 duplicated_node_id, node_at_end_of_turn);
 
-                                        if (restriction.condition.empty())
-                                            continue;
+                            //             if (restriction.condition.empty())
+                            //                 continue;
 
-                                        // add into delayed data
-                                        auto edge_with_data_and_condition =
-                                            generate_edge(NodeID(from_id),
-                                                          nbe_to_ebn_mapping[turn.eid],
-                                                          node_along_road_entering,
-                                                          incoming_edge,
-                                                          node_at_center_of_intersection,
-                                                          turn.eid,
-                                                          intersection,
-                                                          turn,
-                                                          entry_class_id);
+                            //             // add into delayed data
+                            //             auto edge_with_data_and_condition =
+                            //                 generate_edge(NodeID(from_id),
+                            //                               nbe_to_ebn_mapping[turn.eid],
+                            //                               node_along_road_entering,
+                            //                               incoming_edge,
+                            //                               node_at_center_of_intersection,
+                            //                               turn.eid,
+                            //                               intersection,
+                            //                               turn,
+                            //                               entry_class_id);
 
-                                        buffer->delayed_data.push_back(
-                                            std::move(edge_with_data_and_condition.first));
+                            //             buffer->delayed_data.push_back(
+                            //                 std::move(edge_with_data_and_condition.first));
 
-                                        if (edge_with_data_and_condition.second)
-                                        {
-                                            buffer->conditionals.push_back(
-                                                *edge_with_data_and_condition.second);
-                                        }
+                            //             if (edge_with_data_and_condition.second)
+                            //             {
+                            //                 buffer->conditionals.push_back(
+                            //                     *edge_with_data_and_condition.second);
+                            //             }
 
-                                        // also add the conditions for the way
-                                        if (is_way_restricted && !restriction.condition.empty())
-                                        {
-                                            // add a new conditional for the edge we just created
-                                            buffer->conditionals.push_back(
-                                                {NodeID(from_id),
-                                                 nbe_to_ebn_mapping[turn.eid],
-                                                 {static_cast<std::uint64_t>(-1),
-                                                  m_coordinates[node_at_center_of_intersection],
-                                                  restriction.condition}});
-                                        }
-                                    }
-                                    else
-                                    {
-                                        auto edge_with_data_and_condition =
-                                            generate_edge(NodeID(from_id),
-                                                          nbe_to_ebn_mapping[turn.eid],
-                                                          node_along_road_entering,
-                                                          incoming_edge,
-                                                          node_at_center_of_intersection,
-                                                          turn.eid,
-                                                          intersection,
-                                                          turn,
-                                                          entry_class_id);
+                            //             // also add the conditions for the way
+                            //             if (is_way_restricted && !restriction.condition.empty())
+                            //             {
+                            //                 // add a new conditional for the edge we just created
+                            //                 buffer->conditionals.push_back(
+                            //                     {NodeID(from_id),
+                            //                      nbe_to_ebn_mapping[turn.eid],
+                            //                      {static_cast<std::uint64_t>(-1),
+                            //                       m_coordinates[node_at_center_of_intersection],
+                            //                       restriction.condition}});
+                            //             }
+                            //         }
+                            //         else
+                            //         {
+                            //             auto edge_with_data_and_condition =
+                            //                 generate_edge(NodeID(from_id),
+                            //                               nbe_to_ebn_mapping[turn.eid],
+                            //                               node_along_road_entering,
+                            //                               incoming_edge,
+                            //                               node_at_center_of_intersection,
+                            //                               turn.eid,
+                            //                               intersection,
+                            //                               turn,
+                            //                               entry_class_id);
 
-                                        buffer->delayed_data.push_back(
-                                            std::move(edge_with_data_and_condition.first));
+                            //             buffer->delayed_data.push_back(
+                            //                 std::move(edge_with_data_and_condition.first));
 
-                                        if (edge_with_data_and_condition.second)
-                                        {
-                                            buffer->conditionals.push_back(
-                                                *edge_with_data_and_condition.second);
-                                        }
-                                    }
-                                }
-                            }
+                            //             if (edge_with_data_and_condition.second)
+                            //             {
+                            //                 buffer->conditionals.push_back(
+                            //                     *edge_with_data_and_condition.second);
+                            //             }
+                            //         }
+                            //     }
+                            // }
                         }
                     }
 
-                    std::cout << "new_turns " << new_turns << " old_turns " << old_turns << "\n";
+                    // std::cout << "new_turns " << new_turns << " old_turns " << old_turns << "\n";
                     OSRM_ASSERT(new_turns == old_turns,
                                 m_coordinates[node_at_center_of_intersection]);
                 }
@@ -969,7 +969,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
         std::vector<lookup::TurnIndexBlock> turn_indexes_write_buffer;
         turn_indexes_write_buffer.reserve(TURN_INDEX_WRITE_BUFFER_SIZE);
 
-        std::vector<EdgeWithData> delayed_data;
+        // std::vector<EdgeWithData> delayed_data;
 
         // Last part of the pipeline puts all the calculated data into the serial buffers
         tbb::filter_t<std::shared_ptr<PipelineBuffer>, void> output_stage(
@@ -1006,8 +1006,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                     turn_indexes_write_buffer.clear();
                 }
 
-                delayed_data.insert(
-                    delayed_data.end(), buffer->delayed_data.begin(), buffer->delayed_data.end());
+                // delayed_data.insert(
+                //     delayed_data.end(), buffer->delayed_data.begin(), buffer->delayed_data.end());
             });
 
         // Now, execute the pipeline.  The value of "5" here was chosen by experimentation
@@ -1018,17 +1018,17 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
         tbb::parallel_pipeline(tbb::task_scheduler_init::default_num_threads() * 5,
                                generator_stage & processor_stage & output_stage);
 
-        std::sort(delayed_data.begin(), delayed_data.end(), [](auto const &lhs, auto const &rhs) {
-            return lhs.edge.source < rhs.edge.source;
-        });
-        auto const transfer_data = [&](auto const &edge_with_data) {
-            m_edge_based_edge_list.push_back(edge_with_data.edge);
-            turn_weight_penalties.push_back(edge_with_data.turn_weight_penalty);
-            turn_duration_penalties.push_back(edge_with_data.turn_duration_penalty);
-            turn_data_container.push_back(edge_with_data.turn_data);
-            turn_indexes_write_buffer.push_back(edge_with_data.turn_index);
-        };
-        std::for_each(delayed_data.begin(), delayed_data.end(), transfer_data);
+        // std::sort(delayed_data.begin(), delayed_data.end(), [](auto const &lhs, auto const &rhs) {
+        //     return lhs.edge.source < rhs.edge.source;
+        // });
+        // auto const transfer_data = [&](auto const &edge_with_data) {
+        //     m_edge_based_edge_list.push_back(edge_with_data.edge);
+        //     turn_weight_penalties.push_back(edge_with_data.turn_weight_penalty);
+        //     turn_duration_penalties.push_back(edge_with_data.turn_duration_penalty);
+        //     turn_data_container.push_back(edge_with_data.turn_data);
+        //     turn_indexes_write_buffer.push_back(edge_with_data.turn_index);
+        // };
+        // std::for_each(delayed_data.begin(), delayed_data.end(), transfer_data);
 
         // Flush the turn_indexes_write_buffer if it's not empty
         if (!turn_indexes_write_buffer.empty())
