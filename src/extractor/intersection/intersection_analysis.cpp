@@ -12,6 +12,16 @@ namespace extractor
 {
 namespace intersection
 {
+namespace
+{
+double findAngleBisector(double alpha, double beta)
+{
+    alpha *= M_PI / 180.;
+    beta *= M_PI / 180.;
+    return 180. * std::atan2(std::sin(alpha) + std::sin(beta), std::cos(alpha) + std::cos(beta)) /
+           M_PI;
+}
+}
 
 IntersectionEdges getIncomingEdges(const util::NodeBasedDynamicGraph &graph,
                                    const NodeID intersection_node)
@@ -89,9 +99,10 @@ IntersectionEdgeGeometries
 getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                           const extractor::CompressedEdgeContainer &compressed_geometries,
                           const std::vector<util::Coordinate> &node_coordinates,
+                          const guidance::MergableRoadDetector &detector,
                           const NodeID intersection_node)
 {
-    IntersectionEdgeGeometries result;
+    IntersectionEdgeGeometries edge_geometries;
 
     // TODO: keep CoordinateExtractor to reproduce bearings, simplify later
     const guidance::CoordinateExtractor coordinate_extractor(
@@ -105,10 +116,10 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                      graph.GetEdgeData(eid).flags.road_classification.GetNumberOfLanes());
     }
 
+    // Collect outgoing edges
     for (const auto outgoing_edge : graph.GetAdjacentEdgeRange(intersection_node))
     {
         const auto remote_node = graph.GetTarget(outgoing_edge);
-        const auto incoming_edge = graph.FindEdge(remote_node, intersection_node);
 
         const auto &geometry = getEdgeCoordinates(
             compressed_geometries, node_coordinates, intersection_node, outgoing_edge, remote_node);
@@ -126,26 +137,77 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                                                                  max_lanes_intersection,
                                                                  geometry));
 
-        // TODO: add MergableRoadDetector logic
-
         const auto edge_length = util::coordinate_calculation::getLength(
             geometry.begin(), geometry.end(), util::coordinate_calculation::haversineDistance);
 
-        result.push_back({outgoing_edge, perceived_bearing, edge_length});
-        result.push_back({incoming_edge, util::bearing::reverse(perceived_bearing), edge_length});
+        edge_geometries.push_back({outgoing_edge, initial_bearing, perceived_bearing, edge_length});
 
         // for (auto x : geometry)
         //     std::cout << x << ", ";
         // std::cout << "\n";
     }
 
+    const auto edges_number = edge_geometries.size();
+
+    if (edges_number >= 3)
+    {
+        // Order edges by bearings in clockwise order
+        std::sort(
+            edge_geometries.begin(), edge_geometries.end(), [](const auto &lhs, const auto &rhs) {
+                return lhs.perceived_bearing < rhs.perceived_bearing;
+            });
+
+        // Get mergeable roads
+        std::vector<bool> mergable_roads(edges_number);
+        for (std::size_t curr = 0, next = 1; curr < edges_number;
+             ++curr, next = (next + 1) % edges_number)
+        {
+            const auto &lhs = edge_geometries[curr];
+            const auto &rhs = edge_geometries[next];
+            mergable_roads[curr] =
+                detector.CanMergeRoad(intersection_node,
+                                      {lhs.edge, lhs.perceived_bearing, lhs.length},
+                                      {rhs.edge, rhs.perceived_bearing, rhs.length});
+            std::cout << curr << " " << lhs.edge << " " << rhs.edge << " " << lhs.perceived_bearing
+                      << " " << rhs.perceived_bearing << " " << mergable_roads[curr] << "\n";
+        }
+
+        for (std::size_t curr = 0, next = 1, prev = edges_number - 1; curr < edges_number;
+             ++curr, next = (next + 1) % edges_number, prev = (prev + 1) % edges_number)
+        {
+            if (!mergable_roads[prev] && mergable_roads[curr] && !mergable_roads[next])
+            { // Merge bearings of roads curr & next
+                // TODO: Here is used an angle bisector, but not a reversed closed turn, to be
+                // checked
+                const auto angle = findAngleBisector(edge_geometries[curr].perceived_bearing,
+                                                     edge_geometries[next].perceived_bearing);
+                edge_geometries[curr].perceived_bearing = angle;
+                edge_geometries[next].perceived_bearing = angle;
+            }
+        }
+    }
+
+    // Add incoming edges with reversed bearings
+    edge_geometries.resize(2 * edges_number);
+    for (std::size_t index = 0; index < edges_number; ++index)
+    {
+        const auto &geometry = edge_geometries[index];
+        const auto remote_node = graph.GetTarget(geometry.edge);
+        const auto incoming_edge = graph.FindEdge(remote_node, intersection_node);
+        edge_geometries[edges_number + index] = {incoming_edge,
+                                                 util::bearing::reverse(geometry.initial_bearing),
+                                                 util::bearing::reverse(geometry.perceived_bearing),
+                                                 geometry.length};
+    }
+
     // for (auto x : result)
     //     std::cout << x.edge << "," << x.bearing << ";   ";
     // std::cout << "\n";
 
-    // Enforce ordering of edges
-    std::sort(result.begin(), result.end());
-    return result;
+    // Enforce ordering of edges by IDs
+    std::sort(edge_geometries.begin(), edge_geometries.end());
+
+    return edge_geometries;
 }
 
 inline auto findEdge(const IntersectionEdgeGeometries &geometries, const EdgeID &edge)
@@ -160,7 +222,7 @@ inline auto findEdge(const IntersectionEdgeGeometries &geometries, const EdgeID 
 
 double findEdgeBearing(const IntersectionEdgeGeometries &geometries, const EdgeID &edge)
 {
-    return findEdge(geometries, edge)->bearing;
+    return findEdge(geometries, edge)->perceived_bearing;
 }
 
 double findEdgeLength(const IntersectionEdgeGeometries &geometries, const EdgeID &edge)

@@ -441,6 +441,17 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                                                        turn_analysis,
                                                        lane_data_map);
 
+    // TODO: add a MergableRoadDetector instance, to be deleted later
+    guidance::CoordinateExtractor coordinate_extractor(
+        m_node_based_graph, m_compressed_edge_container, m_coordinates);
+    guidance::MergableRoadDetector mergable_road_detector(m_node_based_graph,
+                                                          m_edge_based_node_container,
+                                                          m_coordinates,
+                                                          turn_analysis.GetIntersectionGenerator(),
+                                                          coordinate_extractor,
+                                                          name_table,
+                                                          street_name_suffix_table);
+
     bearing_class_by_node_based_node.resize(m_node_based_graph.GetNumberOfNodes(),
                                             std::numeric_limits<std::uint32_t>::max());
 
@@ -678,6 +689,7 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                         intersection::getIntersectionGeometries(m_node_based_graph,
                                                                 m_compressed_edge_container,
                                                                 m_coordinates,
+                                                                mergable_road_detector,
                                                                 node_at_center_of_intersection);
 
                     // TODO: keep shape_result for comparison, to be removed later
@@ -784,9 +796,13 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             BOOST_ASSERT(
                                 std::fabs(
                                     intersection_with_flags_and_angles_old[j].segment_length -
+                                    intersection_with_flags_and_angles_new[i].segment_length) <
+                                    1e-3 ||
+                                std::fabs(
+                                    intersection_with_flags_and_angles_old[j].segment_length -
                                     intersection_with_flags_and_angles_new[i].segment_length) /
-                                    intersection_with_flags_and_angles_old[i].segment_length <
-                                1e-6);
+                                        intersection_with_flags_and_angles_old[i].segment_length <
+                                    1e-6);
                             BOOST_ASSERT(intersection_with_flags_and_angles_old[j].entry_allowed ==
                                          intersection_with_flags_and_angles_new[i].entry_allowed);
                             BOOST_ASSERT(

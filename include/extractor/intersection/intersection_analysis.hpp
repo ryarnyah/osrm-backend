@@ -2,6 +2,7 @@
 #define OSRM_EXTRACTOR_INTERSECTION_INTERSECTION_ANALYSIS_HPP
 
 #include "extractor/compressed_edge_container.hpp"
+#include "extractor/guidance/mergable_road_detector.hpp"
 #include "extractor/guidance/turn_lane_types.hpp"
 #include "extractor/intersection/intersection_edge.hpp"
 #include "extractor/restriction_index.hpp"
@@ -29,6 +30,7 @@ IntersectionEdgeGeometries
 getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                           const extractor::CompressedEdgeContainer &compressed_geometries,
                           const std::vector<util::Coordinate> &node_coordinates,
+                          const guidance::MergableRoadDetector &detector,
                           const NodeID intersection);
 
 bool isTurnAllowed(const util::NodeBasedDynamicGraph &graph,

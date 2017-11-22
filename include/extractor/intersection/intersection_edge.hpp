@@ -29,8 +29,9 @@ using IntersectionEdges = std::vector<IntersectionEdge>;
 struct IntersectionEdgeGeometry
 {
     EdgeID edge;
-    double bearing;
-    double length; // TODO: check if needed here
+    double initial_bearing;
+    double perceived_bearing;
+    double length;
 
     bool operator<(const IntersectionEdgeGeometry &other) const { return edge < other.edge; }
 };
