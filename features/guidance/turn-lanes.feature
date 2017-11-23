@@ -112,7 +112,7 @@ Feature: Turn Lane Guidance
             | a,d       | in,right,right       | depart,turn right,arrive        | ,none:false right:true, |
             | a,e       | in,left,left         | depart,turn left,arrive         | ,none:true right:false, |
 
-    @simple @reverse
+    @simple @reverse @todo
     Scenario: Basic Turn Lane 4-Way With U-Turn Lane
         Given the node map
             """

@@ -183,6 +183,7 @@ Feature: Basic Roundabout
            | j,f       | jkl,def,def,def | depart,roundabout-exit-3,exit roundabout straight,arrive |
            | j,c       | jkl,abc,abc,abc | depart,roundabout-exit-4,exit roundabout straight,arrive |
 
+    @todo
     Scenario: Mixed Entry and Exit - segregated roads
         Given the node map
            """
@@ -222,6 +223,7 @@ Feature: Basic Roundabout
            | j,f       | jkl,def,def,def | depart,roundabout-exit-2,exit roundabout right,arrive |
            | j,c       | jkl,abc,abc,abc | depart,roundabout-exit-3,exit roundabout right,arrive |
 
+     @todo
      Scenario: Mixed Entry and Exit - clockwise order
         Given the node map
            """
@@ -259,6 +261,7 @@ Feature: Basic Roundabout
            | j,f       | jkl,def,def,def | depart,roundabout-exit-2,exit roundabout left,arrive |
            | j,c       | jkl,abc,abc,abc | depart,roundabout-exit-1,exit roundabout left,arrive |
 
+    @todo
     Scenario: Mixed Entry and Exit - segregated roads, different names
         Given the node map
            """
@@ -767,6 +770,7 @@ Feature: Basic Roundabout
            | g,h       | 45 135   | gch,gch,gch     | depart,exit roundabout right,arrive                        |
            | e,e       | 90 270   | edf,edf,edf     | depart,continue uturn,arrive                               |
 
+    @todo
     Scenario: CCW and CW roundabouts with overlaps
         Given the node map
             """

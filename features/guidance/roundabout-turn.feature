@@ -207,6 +207,7 @@ Feature: Basic Roundabout
            | j,f       | jkl,def,def,def | depart,roundabout-exit-3,exit roundabout straight,arrive |
            | j,c       | jkl,abc,abc,abc | depart,roundabout-exit-4,exit roundabout straight,arrive |
 
+    @todo
     Scenario: Segregated roads - Not an intersection
         Given the node map
            """
@@ -263,6 +264,7 @@ Feature: Basic Roundabout
             | a,e       | ab,ce,ce | depart,roundabout turn right exit-1,arrive    |
             | a,f       | ab,df,df | depart,roundabout turn straight exit-2,arrive |
 
+       @todo
        Scenario: Collinear in Y
         Given the node map
             """

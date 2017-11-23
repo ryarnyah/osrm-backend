@@ -757,6 +757,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             intersection_with_flags_and_angles_new.end(),
                             [](const auto &lhs, const auto &rhs) { return lhs.angle < rhs.angle; });
 
+                        std::cout << incoming_edge.edge << "\n";
+
                         std::cout << "old view\n";
                         for (auto x : intersection_with_flags_and_angles_old)
                             std::cout << x.eid << " " << x.bearing << " " << x.segment_length << " "
@@ -792,7 +794,11 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             BOOST_ASSERT(
                                 std::fabs(intersection_with_flags_and_angles_old[j].bearing -
                                           intersection_with_flags_and_angles_new[i].bearing) <
-                                1e-4);
+                                    1e-4 ||
+                                std::fabs(intersection_with_flags_and_angles_old[j].bearing -
+                                          intersection_with_flags_and_angles_new[i].bearing) -
+                                        360. <
+                                    1e-4);
                             BOOST_ASSERT(
                                 std::fabs(
                                     intersection_with_flags_and_angles_old[j].segment_length -
