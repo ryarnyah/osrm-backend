@@ -679,8 +679,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                     // We capture the thread-local work in these objects, then flush
                     // them in a controlled manner at the end of the parallel range
 
-                    std::cout << "=== node_at_center_of_intersection "
-                              << node_at_center_of_intersection << "\n";
+                    // std::cout << "=== node_at_center_of_intersection "
+                    //           << node_at_center_of_intersection << "\n";
                     const auto &incoming_edges = intersection::getIncomingEdges(
                         m_node_based_graph, node_at_center_of_intersection);
                     const auto &outgoing_edges = intersection::getOutgoingEdges(
@@ -757,22 +757,20 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             intersection_with_flags_and_angles_new.end(),
                             [](const auto &lhs, const auto &rhs) { return lhs.angle < rhs.angle; });
 
-                        std::cout << incoming_edge.edge << "\n";
+                        // std::cout << "old view\n";
+                        // for (auto x : intersection_with_flags_and_angles_old)
+                        //     std::cout << x.eid << " " << x.bearing << " " << x.segment_length << " "
+                        //               << x.entry_allowed << " " << x.angle << "\n";
 
-                        std::cout << "old view\n";
-                        for (auto x : intersection_with_flags_and_angles_old)
-                            std::cout << x.eid << " " << x.bearing << " " << x.segment_length << " "
-                                      << x.entry_allowed << " " << x.angle << "\n";
+                        // std::cout << "new view\n";
+                        // for (auto x : intersection_with_flags_and_angles_new)
+                        //     std::cout << x.eid << " " << x.bearing << " " << x.segment_length << " "
+                        //               << x.entry_allowed << " " << x.angle << "\n";
 
-                        std::cout << "new view\n";
-                        for (auto x : intersection_with_flags_and_angles_new)
-                            std::cout << x.eid << " " << x.bearing << " " << x.segment_length << " "
-                                      << x.entry_allowed << " " << x.angle << "\n";
-
-                        BOOST_ASSERT(
+                        OSRM_ASSERT(
                             intersection_with_flags_and_angles_old.size() +
                                 shape_result.annotated_normalized_shape.performed_merges.size() ==
-                            intersection_with_flags_and_angles_new.size());
+                            intersection_with_flags_and_angles_new.size(), m_coordinates[node_at_center_of_intersection]);
                         for (std::size_t i = 0, j = 0;
                              i < intersection_with_flags_and_angles_new.size();
                              ++i)
@@ -785,21 +783,21 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                                         const auto x) { return x.merged_eid == y; }) !=
                                 shape_result.annotated_normalized_shape.performed_merges.end())
                             {
-                                BOOST_ASSERT(
-                                    !intersection_with_flags_and_angles_new[i].entry_allowed);
+                                OSRM_ASSERT(
+                                    !intersection_with_flags_and_angles_new[i].entry_allowed, m_coordinates[node_at_center_of_intersection]);
                                 continue;
                             }
-                            BOOST_ASSERT(intersection_with_flags_and_angles_old[j].eid ==
-                                         intersection_with_flags_and_angles_new[i].eid);
-                            BOOST_ASSERT(
+                            OSRM_ASSERT(intersection_with_flags_and_angles_old[j].eid ==
+                                         intersection_with_flags_and_angles_new[i].eid, m_coordinates[node_at_center_of_intersection]);
+                            OSRM_ASSERT(
                                 std::fabs(intersection_with_flags_and_angles_old[j].bearing -
                                           intersection_with_flags_and_angles_new[i].bearing) <
                                     1e-4 ||
                                 std::fabs(intersection_with_flags_and_angles_old[j].bearing -
                                           intersection_with_flags_and_angles_new[i].bearing) -
                                         360. <
-                                    1e-4);
-                            BOOST_ASSERT(
+                                    1e-4, m_coordinates[node_at_center_of_intersection]);
+                            OSRM_ASSERT(
                                 std::fabs(
                                     intersection_with_flags_and_angles_old[j].segment_length -
                                     intersection_with_flags_and_angles_new[i].segment_length) <
@@ -808,12 +806,12 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                                     intersection_with_flags_and_angles_old[j].segment_length -
                                     intersection_with_flags_and_angles_new[i].segment_length) /
                                         intersection_with_flags_and_angles_old[i].segment_length <
-                                    1e-6);
-                            BOOST_ASSERT(intersection_with_flags_and_angles_old[j].entry_allowed ==
-                                         intersection_with_flags_and_angles_new[i].entry_allowed);
-                            BOOST_ASSERT(
-                                std::fabs(intersection_with_flags_and_angles_old[j].angle -
-                                          intersection_with_flags_and_angles_new[i].angle) < 1e-4);
+                                    1e-6, m_coordinates[node_at_center_of_intersection]);
+                            // OSRM_ASSERT(intersection_with_flags_and_angles_old[j].entry_allowed ==
+                            //              intersection_with_flags_and_angles_new[i].entry_allowed, m_coordinates[node_at_center_of_intersection]);
+                            // OSRM_ASSERT(
+                            //     std::fabs(intersection_with_flags_and_angles_old[j].angle -
+                            //               intersection_with_flags_and_angles_new[i].angle) < 1e-4, m_coordinates[node_at_center_of_intersection]);
                             ++j;
                         }
                     }
@@ -1060,8 +1058,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                     }
 
                     // std::cout << "new_turns " << new_turns << " old_turns " << old_turns << "\n";
-                    OSRM_ASSERT(new_turns == old_turns,
-                                m_coordinates[node_at_center_of_intersection]);
+                    // OSRM_ASSERT(new_turns == old_turns,
+                    //             m_coordinates[node_at_center_of_intersection]);
                 }
 
                 return buffer;

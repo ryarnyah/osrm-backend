@@ -71,7 +71,7 @@ getEdgeCoordinates(const extractor::CompressedEdgeContainer &compressed_geometri
     // extracts the geometry in coordinates from the compressed edge container
     std::vector<util::Coordinate> result;
     const auto &geometry = compressed_geometries.GetBucketReference(edge);
-    result.reserve(geometry.size() + 2);
+    result.reserve(geometry.size() + 1);
 
     result.push_back(node_coordinates[from_node]);
     std::transform(geometry.begin(),
@@ -80,7 +80,6 @@ getEdgeCoordinates(const extractor::CompressedEdgeContainer &compressed_geometri
                    [&node_coordinates](const auto &compressed_edge) {
                        return node_coordinates[compressed_edge.node_id];
                    });
-    result.push_back(node_coordinates[to_node]);
 
     // filter duplicated coordinates
     result.erase(std::unique(result.begin(), result.end()), result.end());
@@ -117,8 +116,11 @@ std::pair<bool, double> findMergedBearing(const util::NodeBasedDynamicGraph &gra
                                           const IntersectionEdgeGeometries &edge_geometries,
                                           std::size_t lhs_index,
                                           std::size_t rhs_index,
-                                          bool check1)
+                                          bool neighbor_intersection)
 {
+    // Function returns a pair with a flag and a value of bearing for merged roads
+    // If the flag is false the bearing must not be used as a merged value at neighbor intersections
+
     using guidance::STRAIGHT_ANGLE;
     using guidance::MAXIMAL_ALLOWED_NO_TURN_DEVIATION;
     using util::bearing::angleBetween;
@@ -133,49 +135,54 @@ std::pair<bool, double> findMergedBearing(const util::NodeBasedDynamicGraph &gra
         findClosestOppositeBearing(edge_geometries, entry.perceived_bearing);
     const auto merged_bearing = findAngleBisector(rhs.perceived_bearing, lhs.perceived_bearing);
 
-    std::cout << "findMergedBearing for " << lhs_index << " and " << rhs_index
-              << "   merged_bearing = " << merged_bearing
-              << " opposite_bearing = " << opposite_bearing << "\n";
+    // std::cout << "findMergedBearing for " << lhs_index << " and " << rhs_index
+    //           << "   merged_bearing = " << merged_bearing
+    //           << " opposite_bearing = " << opposite_bearing << "\n";
 
-    if (check1)
-    {
-        std::cout << "angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing), "
-                     "STRAIGHT_ANGLE) "
-                  << angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing),
-                                      STRAIGHT_ANGLE)
-                  << "\n";
-        if (angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing),
-                             STRAIGHT_ANGLE) < MAXIMAL_ALLOWED_NO_TURN_DEVIATION)
-            return {true, entry.perceived_bearing};
+    // std::cout << "angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing), "
+    //              "STRAIGHT_ANGLE) "
+    //           << angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing),
+    //                               STRAIGHT_ANGLE)
+    //           << "\n";
 
-        return {true, merged_bearing};
-    }
-
-    std::cout << "angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing), "
-                 "STRAIGHT_ANGLE) "
-              << angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing),
-                                  STRAIGHT_ANGLE)
-              << "\n";
     if (angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing), STRAIGHT_ANGLE) <
         MAXIMAL_ALLOWED_NO_TURN_DEVIATION)
+    {
+        // In some intersections, turning roads can introduce artificial turns if we merge here.
+        // Consider a scenario like:
+        // 
+        //  a     .  g - f
+        //  |   .
+        //  | .
+        //  |.
+        // d-b--------e
+        //  |
+        //  c
+        // 
+        // Merging `bgf` and `be` would introduce an angle, even though d-b-e is perfectly straight
+        // We don't change the angle, if such an opposite road exists
         return {false, entry.perceived_bearing};
+    }
 
-    // Check that the merged bearing makes both turns closer to straight line
-    const auto turn_angle_lhs = angleBetween(opposite_bearing, lhs.perceived_bearing);
-    const auto turn_angle_rhs = angleBetween(opposite_bearing, rhs.perceived_bearing);
-    const auto turn_angle_new = angleBetween(opposite_bearing, merged_bearing);
+    if (neighbor_intersection)
+    {
+        // Check that the merged bearing makes both turns closer to straight line
+        const auto turn_angle_lhs = angleBetween(opposite_bearing, lhs.perceived_bearing);
+        const auto turn_angle_rhs = angleBetween(opposite_bearing, rhs.perceived_bearing);
+        const auto turn_angle_new = angleBetween(opposite_bearing, merged_bearing);
 
-    std::cout << "turns lhs " << turn_angle_lhs << " rhs " << turn_angle_rhs << " new "
-              << turn_angle_new << "   deviatons rhs "
-              << util::angularDeviation(turn_angle_rhs, STRAIGHT_ANGLE) << "   deviatons lhs "
-              << util::angularDeviation(turn_angle_lhs, STRAIGHT_ANGLE) << " new "
-              << util::angularDeviation(turn_angle_new, STRAIGHT_ANGLE) << "\n";
+        // std::cout << "turns lhs " << turn_angle_lhs << " rhs " << turn_angle_rhs << " new "
+        //           << turn_angle_new << "   deviatons rhs "
+        //           << util::angularDeviation(turn_angle_rhs, STRAIGHT_ANGLE) << "   deviatons lhs "
+        //           << util::angularDeviation(turn_angle_lhs, STRAIGHT_ANGLE) << " new "
+        //           << util::angularDeviation(turn_angle_new, STRAIGHT_ANGLE) << "\n";
 
-    if (util::angularDeviation(turn_angle_lhs, STRAIGHT_ANGLE) <
-            util::angularDeviation(turn_angle_new, STRAIGHT_ANGLE) ||
-        util::angularDeviation(turn_angle_rhs, STRAIGHT_ANGLE) <
-            util::angularDeviation(turn_angle_new, STRAIGHT_ANGLE))
-        return {false, opposite_bearing};
+        if (util::angularDeviation(turn_angle_lhs, STRAIGHT_ANGLE) <
+                util::angularDeviation(turn_angle_new, STRAIGHT_ANGLE) ||
+            util::angularDeviation(turn_angle_rhs, STRAIGHT_ANGLE) <
+                util::angularDeviation(turn_angle_new, STRAIGHT_ANGLE))
+            return {false, opposite_bearing};
+    }
 
     return {true, merged_bearing};
 }
@@ -238,10 +245,12 @@ getIntersectionOutgoingGeometries(const util::NodeBasedDynamicGraph &graph,
         const auto &geometry = getEdgeCoordinates(
             compressed_geometries, node_coordinates, intersection_node, outgoing_edge, remote_node);
 
-        OSRM_ASSERT(geometry.size() >= 2, node_coordinates[intersection_node]);
+        // OSRM_ASSERT(geometry.size() >= 2, node_coordinates[intersection_node]);
 
+        const auto close_coordinate =
+            coordinate_extractor.ExtractCoordinateAtLength(2. /*m*/, geometry);
         const auto initial_bearing =
-            util::coordinate_calculation::bearing(geometry[0], geometry[1]);
+            util::coordinate_calculation::bearing(geometry[0], close_coordinate);
 
         const auto representative_coordinate =
             graph.GetOutDegree(intersection_node) <= 2
@@ -262,14 +271,45 @@ getIntersectionOutgoingGeometries(const util::NodeBasedDynamicGraph &graph,
         edge_geometries.push_back({outgoing_edge, initial_bearing, perceived_bearing, edge_length});
     }
 
-    // Order edges by bearings in clockwise order
-    std::sort(edge_geometries.begin(), edge_geometries.end(), [](const auto &lhs, const auto &rhs) {
-        return lhs.perceived_bearing < rhs.perceived_bearing;
-    });
+    if (!edge_geometries.empty())
+    { // Adjust perceived bearings to keep the initial order with respect to the first edge
+        // Sort geometries by initial bearings
+        std::sort(edge_geometries.begin(), edge_geometries.end(), [base_bearing = util::bearing::reverse(
+                                                 edge_geometries.front().initial_bearing)](
+            const auto &lhs, const auto &rhs)
+        {
+            return (util::bearing::angleBetween(lhs.initial_bearing, base_bearing) <
+                    util::bearing::angleBetween(rhs.initial_bearing, base_bearing)) ||
+                   (lhs.initial_bearing == rhs.initial_bearing &&
+                    util::bearing::angleBetween(lhs.perceived_bearing, rhs.perceived_bearing) <
+                        180.);
+        });
 
-    std::cout << "  intersection at " << intersection_node << "\n";
-    for (auto x : edge_geometries)
-        std::cout << "   " << x.edge << " " << x.perceived_bearing << " " << x.length << "\n";
+        // Make a bearings ordering functor
+        const auto base_bearing = util::bearing::reverse(edge_geometries.front().perceived_bearing);
+        const auto bearings_order = [base_bearing](const auto &lhs, const auto &rhs) {
+            return util::bearing::angleBetween(lhs.perceived_bearing, base_bearing) <
+                   util::bearing::angleBetween(rhs.perceived_bearing, base_bearing);
+        };
+
+        // Check the perceived bearings order is the same as the initial one
+        for (auto curr = edge_geometries.begin(), next = std::next(curr);
+             next != edge_geometries.end();
+             ++curr, ++next)
+        {
+            if (bearings_order(*next, *curr))
+            { // If the true bearing is out of the initial order (next before current) then
+                // adjust the next bearing to keep the order. The adjustment angle is at most
+                // 0.5° or a half-angle between the current bearing and the base bearing.
+                // to prevent overlapping over base bearing + 360°.
+                const auto angle_adjustment = std::min(
+                    .5,
+                    util::restrictAngleToValidRange(base_bearing - curr->perceived_bearing) / 2.);
+                next->perceived_bearing =
+                    util::restrictAngleToValidRange(curr->perceived_bearing + angle_adjustment);
+            }
+        }
+    }
 
     return edge_geometries;
 }
@@ -286,6 +326,7 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
         graph, compressed_geometries, node_coordinates, intersection_node);
 
     const auto edges_number = edge_geometries.size();
+
     std::vector<bool> merged_edges(edges_number, false);
 
     if (edges_number >= 3)
@@ -300,21 +341,14 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                 merged_edges[index] = true;
                 merged_edges[next] = true;
 
-                // TODO: merge with an angle bisector, but not a reversed closed turn, to be
-                // checked as a difference with the previous implementation
-                // findAngleBisector(lhs.perceived_bearing, rhs.perceived_bearing);
-                const auto merge = findMergedBearing(graph, edge_geometries, index, next, true);
-                const auto merged_bearing =
-                    findAngleBisector(lhs.perceived_bearing, rhs.perceived_bearing);
+                const auto merge = findMergedBearing(graph, edge_geometries, index, next, false);
 
                 {
-                    std::cout << "merging " << lhs.edge << " with " << rhs.edge << " from "
-                              << lhs.perceived_bearing << " and " << rhs.perceived_bearing << " to "
-                              << (merge.first ? " bisector " : " opposite ") << merge.second
-                              << "\n";
+                    // std::cout << "merging " << lhs.edge << " with " << rhs.edge << " from "
+                    //           << lhs.perceived_bearing << " and " << rhs.perceived_bearing << " to "
+                    //           << (merge.first ? " bisector " : " opposite ") << merge.second
+                    //           << "\n";
 
-                    // lhs.perceived_bearing = merged_bearing;
-                    // rhs.perceived_bearing = merged_bearing;
                     lhs.perceived_bearing = merge.second;
                     rhs.perceived_bearing = merge.second;
                 }
@@ -364,18 +398,18 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                 // TODO: merge with an angle bisector, but not a reversed closed turn, to be
                 // checked as a difference with the previous implementation
                 const auto merge = findMergedBearing(
-                    graph, neighbor_geometries, neighbor_prev, neighbor_curr, false);
+                    graph, neighbor_geometries, neighbor_prev, neighbor_curr, true);
 
                 if (merge.first)
                 {
                     const auto offset = util::angularDeviation(
                         merge.second, neighbor_geometries[neighbor_curr].perceived_bearing);
 
-                    std::cout << "neighbor merable angle A " << neighbor_prev << " with "
-                              << neighbor_curr << " to "
-                              << (merge.first ? " bisector " : " opposite ") << merge.second
-                              << " offset " << offset << "    " << edge_geometry.perceived_bearing
-                              << " ->" << edge_geometry.perceived_bearing - offset << "\n";
+                    // std::cout << "neighbor merable angle A " << neighbor_prev << " with "
+                    //           << neighbor_curr << " to "
+                    //           << (merge.first ? " bisector " : " opposite ") << merge.second
+                    //           << " offset " << offset << "    " << edge_geometry.perceived_bearing
+                    //           << " ->" << edge_geometry.perceived_bearing - offset << "\n";
 
                     // Adjust bearing of AB at the node A if at the node B roads BA (neighbor_curr)
                     // and BC (neighbor_prev) will be merged and will have merged bearing Bb.
@@ -398,17 +432,17 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                 // TODO: merge with an angle bisector, but not a reversed closed turn, to be
                 // checked as a difference with the previous implementation
                 const auto merge = findMergedBearing(
-                    graph, neighbor_geometries, neighbor_curr, neighbor_next, false);
+                    graph, neighbor_geometries, neighbor_curr, neighbor_next, true);
                 if (merge.first)
                 {
                     const auto offset = util::angularDeviation(
                         merge.second, neighbor_geometries[neighbor_curr].perceived_bearing);
 
-                    std::cout << "neighbor merable angle B " << neighbor_curr << " with "
-                              << neighbor_next << " to "
-                              << (merge.first ? " bisector " : " opposite ") << merge.second
-                              << " offset " << offset << "    " << edge_geometry.perceived_bearing
-                              << " ->" << edge_geometry.perceived_bearing + offset << "\n";
+                    // std::cout << "neighbor merable angle B " << neighbor_curr << " with "
+                    //           << neighbor_next << " to "
+                    //           << (merge.first ? " bisector " : " opposite ") << merge.second
+                    //           << " offset " << offset << "    " << edge_geometry.perceived_bearing
+                    //           << " ->" << edge_geometry.perceived_bearing + offset << "\n";
 
                     // Adjust bearing of AB at the node A if at the node B roads BA (neighbor_curr)
                     // and BC (neighbor_next) will be merged and will have merged bearing Bb.
@@ -437,10 +471,6 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                                                  util::bearing::reverse(geometry.perceived_bearing),
                                                  geometry.length};
     }
-
-    // for (auto x : result)
-    //     std::cout << x.edge << "," << x.bearing << ";   ";
-    // std::cout << "\n";
 
     // Enforce ordering of edges by IDs
     std::sort(edge_geometries.begin(), edge_geometries.end());
