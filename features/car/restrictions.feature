@@ -742,7 +742,7 @@ Feature: Car - Turn restrictions
             | c    | d  | bc,be,de,de       | depart,turn left,turn right,arrive                                  | c,b,e,d     |
             | c    | f  | bc,be,ef,ef       | depart,turn left,turn left,arrive                                   | c,b,e,f     |
 
-    @restriction
+    @restriction-way
     Scenario: Car - allow only turn
         Given the node map
             """
@@ -771,7 +771,7 @@ Feature: Car - Turn restrictions
             | from | to | route       |
             | a    | d  | ab,be,de,de |
 
-    @restriction
+    @restriction-way
     Scenario: Multi Way restriction
         Given the node map
             """
