@@ -135,16 +135,6 @@ std::pair<bool, double> findMergedBearing(const util::NodeBasedDynamicGraph &gra
         findClosestOppositeBearing(edge_geometries, entry.perceived_bearing);
     const auto merged_bearing = findAngleBisector(rhs.perceived_bearing, lhs.perceived_bearing);
 
-    // std::cout << "findMergedBearing for " << lhs_index << " and " << rhs_index
-    //           << "   merged_bearing = " << merged_bearing
-    //           << " opposite_bearing = " << opposite_bearing << "\n";
-
-    // std::cout << "angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing), "
-    //              "STRAIGHT_ANGLE) "
-    //           << angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing),
-    //                               STRAIGHT_ANGLE)
-    //           << "\n";
-
     if (angularDeviation(angleBetween(opposite_bearing, entry.perceived_bearing), STRAIGHT_ANGLE) <
         MAXIMAL_ALLOWED_NO_TURN_DEVIATION)
     {
