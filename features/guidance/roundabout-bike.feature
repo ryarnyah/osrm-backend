@@ -39,7 +39,6 @@ Feature: Basic Roundabout
            | g,f       | bcegb,ef,ef | depart,exit roundabout right,arrive |
       #phantom node snapping can result in a full round-trip here, therefore we cannot test b->a and the other direct exits
 
-     @todo
      Scenario: Mixed Entry and Exit
         Given the node map
            """

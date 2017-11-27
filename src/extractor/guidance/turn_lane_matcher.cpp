@@ -211,34 +211,36 @@ Intersection triviallyMatchLanesToTurns(Intersection intersection,
         road.lane_data_id = lane_data_to_id.ConcurrentFindOrAdd(key);
     };
 
-    if (!lane_data.empty() && lane_data.front().tag == TurnLaneType::uturn)
-    {
-        // the very first is a u-turn to the right
-        if (intersection[0].entry_allowed)
-        {
-            std::size_t u_turn = 0;
-            if (node_based_graph.GetEdgeData(intersection[0].eid).reversed)
-            {
-                if (intersection.size() <= 1 || !intersection[1].entry_allowed ||
-                    intersection[1].instruction.direction_modifier != DirectionModifier::SharpRight)
-                {
-                    // cannot match u-turn in a valid way
-                    return intersection;
-                }
-                u_turn = 1;
-                road_index = 2;
-            }
-            intersection[u_turn].entry_allowed = true;
-            intersection[u_turn].instruction.type = TurnType::Continue;
-            intersection[u_turn].instruction.direction_modifier = DirectionModifier::UTurn;
+    // TODO: remove at cleanup
+    // if (!lane_data.empty() && lane_data.front().tag == TurnLaneType::uturn)
+    // {
+    //     // the very first is a u-turn to the right
+    //     if (intersection[0].entry_allowed)
+    //     {
+    //         std::size_t u_turn = 0;
+    //         if (node_based_graph.GetEdgeData(intersection[0].eid).reversed)
+    //         {
+    //             if (intersection.size() <= 1 || !intersection[1].entry_allowed ||
+    //                 intersection[1].instruction.direction_modifier !=
+    //                 DirectionModifier::SharpRight)
+    //             {
+    //                 // cannot match u-turn in a valid way
+    //                 return intersection;
+    //             }
+    //             u_turn = 1;
+    //             road_index = 2;
+    //         }
+    //         intersection[u_turn].entry_allowed = true;
+    //         intersection[u_turn].instruction.type = TurnType::Continue;
+    //         intersection[u_turn].instruction.direction_modifier = DirectionModifier::UTurn;
 
-            matchRoad(intersection[u_turn], lane_data.back());
-            // continue with the first lane
-            lane = 1;
-        }
-        else
-            return intersection;
-    }
+    //         matchRoad(intersection[u_turn], lane_data.back());
+    //         // continue with the first lane
+    //         lane = 1;
+    //     }
+    //     else
+    //         return intersection;
+    // }
 
     for (; road_index < intersection.size() && lane < lane_data.size(); ++road_index)
     {

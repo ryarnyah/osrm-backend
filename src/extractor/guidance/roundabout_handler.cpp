@@ -56,7 +56,7 @@ bool RoundaboutHandler::canProcess(const NodeID from_nid,
 Intersection RoundaboutHandler::
 operator()(const NodeID from_nid, const EdgeID via_eid, Intersection intersection) const
 {
-    invalidateExitAgainstDirection(from_nid, via_eid, intersection);
+    // TODO: remove at cleanup invalidateExitAgainstDirection(from_nid, via_eid, intersection);
     const auto flags = getRoundaboutFlags(from_nid, via_eid, intersection);
     const auto roundabout_type = getRoundaboutType(node_based_graph.GetTarget(via_eid));
     // find the radius of the roundabout

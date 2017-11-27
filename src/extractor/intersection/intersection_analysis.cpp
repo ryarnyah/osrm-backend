@@ -265,6 +265,7 @@ getIntersectionOutgoingGeometries(const util::NodeBasedDynamicGraph &graph,
         edge_geometries.push_back({outgoing_edge, initial_bearing, perceived_bearing, edge_length});
     }
 
+    // TODO: remove to fix https://github.com/Project-OSRM/osrm-backend/issues/4704
     if (!edge_geometries.empty())
     { // Adjust perceived bearings to keep the initial order with respect to the first edge
         // Sort geometries by initial bearings

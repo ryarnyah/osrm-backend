@@ -423,7 +423,6 @@ Feature: Merge Segregated Roads
             | f,a       | depart,arrive | road,road |
             | g,a       | depart,arrive | road,road |
 
-    @todo
     Scenario: Traffic Island
         Given the node map
             """
