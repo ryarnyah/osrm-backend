@@ -26,7 +26,7 @@ IntersectionEdges getIncomingEdges(const util::NodeBasedDynamicGraph &graph,
 IntersectionEdges getOutgoingEdges(const util::NodeBasedDynamicGraph &graph,
                                    const NodeID intersection);
 
-IntersectionEdgeGeometries
+std::pair<IntersectionEdgeGeometries, std::unordered_set<EdgeID>>
 getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                           const extractor::CompressedEdgeContainer &compressed_geometries,
                           const std::vector<util::Coordinate> &node_coordinates,
@@ -45,10 +45,6 @@ bool isTurnAllowed(const util::NodeBasedDynamicGraph &graph,
 double findEdgeBearing(const IntersectionEdgeGeometries &geometries, const EdgeID &edge);
 
 double findEdgeLength(const IntersectionEdgeGeometries &geometries, const EdgeID &edge);
-
-double computeTurnAngle(const IntersectionEdgeGeometries &bearings,
-                        const IntersectionEdge &from,
-                        const IntersectionEdge &to);
 }
 }
 }

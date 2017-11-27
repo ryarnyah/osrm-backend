@@ -43,7 +43,7 @@ IntersectionEdges getOutgoingEdges(const util::NodeBasedDynamicGraph &graph,
 
     for (const auto outgoing_edge : graph.GetAdjacentEdgeRange(intersection_node))
     {
-        // TODO: to use TurnAnalysis all outgoing edges are required, to be removed later
+        // TODO: to use TurnAnalysis all outgoing edges are required, to be uncommented later
         // if (!graph.GetEdgeData(outgoing_edge).reversed)
         {
             result.push_back({intersection_node, outgoing_edge});
@@ -171,12 +171,6 @@ std::pair<bool, double> findMergedBearing(const util::NodeBasedDynamicGraph &gra
         const auto turn_angle_rhs = angleBetween(opposite_bearing, rhs.perceived_bearing);
         const auto turn_angle_new = angleBetween(opposite_bearing, merged_bearing);
 
-        // std::cout << "turns lhs " << turn_angle_lhs << " rhs " << turn_angle_rhs << " new "
-        //           << turn_angle_new << "   deviatons rhs "
-        //           << util::angularDeviation(turn_angle_rhs, STRAIGHT_ANGLE) << "   deviatons lhs "
-        //           << util::angularDeviation(turn_angle_lhs, STRAIGHT_ANGLE) << " new "
-        //           << util::angularDeviation(turn_angle_new, STRAIGHT_ANGLE) << "\n";
-
         if (util::angularDeviation(turn_angle_lhs, STRAIGHT_ANGLE) <
                 util::angularDeviation(turn_angle_new, STRAIGHT_ANGLE) ||
             util::angularDeviation(turn_angle_rhs, STRAIGHT_ANGLE) <
@@ -201,7 +195,7 @@ bool isRoadsPairMergeable(const guidance::MergableRoadDetector &detector,
     const auto &rrhs = edge_geometries[(index + 2) % size];
 
     // TODO: check IsDistinctFrom - it is an angle and name-only check
-    // check CanMergeRoad for all merging scenarios
+    // also check CanMergeRoad for all merging scenarios
     return detector.IsDistinctFrom({llhs.edge, llhs.perceived_bearing, llhs.length},
                                    {lhs.edge, lhs.perceived_bearing, lhs.length}) &&
            detector.CanMergeRoad(intersection_node,
@@ -274,16 +268,16 @@ getIntersectionOutgoingGeometries(const util::NodeBasedDynamicGraph &graph,
     if (!edge_geometries.empty())
     { // Adjust perceived bearings to keep the initial order with respect to the first edge
         // Sort geometries by initial bearings
-        std::sort(edge_geometries.begin(), edge_geometries.end(), [base_bearing = util::bearing::reverse(
-                                                 edge_geometries.front().initial_bearing)](
-            const auto &lhs, const auto &rhs)
-        {
-            return (util::bearing::angleBetween(lhs.initial_bearing, base_bearing) <
-                    util::bearing::angleBetween(rhs.initial_bearing, base_bearing)) ||
-                   (lhs.initial_bearing == rhs.initial_bearing &&
-                    util::bearing::angleBetween(lhs.perceived_bearing, rhs.perceived_bearing) <
-                        180.);
-        });
+        std::sort(edge_geometries.begin(),
+                  edge_geometries.end(),
+                  [base_bearing = util::bearing::reverse(edge_geometries.front().initial_bearing)](
+                      const auto &lhs, const auto &rhs) {
+                      return (util::bearing::angleBetween(lhs.initial_bearing, base_bearing) <
+                              util::bearing::angleBetween(rhs.initial_bearing, base_bearing)) ||
+                             (lhs.initial_bearing == rhs.initial_bearing &&
+                              util::bearing::angleBetween(lhs.perceived_bearing,
+                                                          rhs.perceived_bearing) < 180.);
+                  });
 
         // Make a bearings ordering functor
         const auto base_bearing = util::bearing::reverse(edge_geometries.front().perceived_bearing);
@@ -315,7 +309,7 @@ getIntersectionOutgoingGeometries(const util::NodeBasedDynamicGraph &graph,
 }
 }
 
-IntersectionEdgeGeometries
+std::pair<IntersectionEdgeGeometries, std::unordered_set<EdgeID>>
 getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                           const extractor::CompressedEdgeContainer &compressed_geometries,
                           const std::vector<util::Coordinate> &node_coordinates,
@@ -328,6 +322,11 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
     const auto edges_number = edge_geometries.size();
 
     std::vector<bool> merged_edges(edges_number, false);
+
+    // TODO: intersection views do not contain merged and not allowed edges
+    // but contain other restricted edges that are used in TurnAnalysis,
+    // to be deleted after TurnAnalysis refactoring
+    std::unordered_set<EdgeID> merged_edge_ids;
 
     if (edges_number >= 3)
     { // Adjust bearings of mergeable roads
@@ -343,15 +342,10 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
 
                 const auto merge = findMergedBearing(graph, edge_geometries, index, next, false);
 
-                {
-                    // std::cout << "merging " << lhs.edge << " with " << rhs.edge << " from "
-                    //           << lhs.perceived_bearing << " and " << rhs.perceived_bearing << " to "
-                    //           << (merge.first ? " bisector " : " opposite ") << merge.second
-                    //           << "\n";
-
-                    lhs.perceived_bearing = merge.second;
-                    rhs.perceived_bearing = merge.second;
-                }
+                lhs.perceived_bearing = merge.second;
+                rhs.perceived_bearing = merge.second;
+                merged_edge_ids.insert(lhs.edge);
+                merged_edge_ids.insert(rhs.edge);
             }
         }
     }
@@ -405,12 +399,6 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                     const auto offset = util::angularDeviation(
                         merge.second, neighbor_geometries[neighbor_curr].perceived_bearing);
 
-                    // std::cout << "neighbor merable angle A " << neighbor_prev << " with "
-                    //           << neighbor_curr << " to "
-                    //           << (merge.first ? " bisector " : " opposite ") << merge.second
-                    //           << " offset " << offset << "    " << edge_geometry.perceived_bearing
-                    //           << " ->" << edge_geometry.perceived_bearing - offset << "\n";
-
                     // Adjust bearing of AB at the node A if at the node B roads BA (neighbor_curr)
                     // and BC (neighbor_prev) will be merged and will have merged bearing Bb.
                     // The adjustment value is ∠bBA with negative sign (counter-clockwise) to Aa
@@ -437,12 +425,6 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
                 {
                     const auto offset = util::angularDeviation(
                         merge.second, neighbor_geometries[neighbor_curr].perceived_bearing);
-
-                    // std::cout << "neighbor merable angle B " << neighbor_curr << " with "
-                    //           << neighbor_next << " to "
-                    //           << (merge.first ? " bisector " : " opposite ") << merge.second
-                    //           << " offset " << offset << "    " << edge_geometry.perceived_bearing
-                    //           << " ->" << edge_geometry.perceived_bearing + offset << "\n";
 
                     // Adjust bearing of AB at the node A if at the node B roads BA (neighbor_curr)
                     // and BC (neighbor_next) will be merged and will have merged bearing Bb.
@@ -475,7 +457,7 @@ getIntersectionGeometries(const util::NodeBasedDynamicGraph &graph,
     // Enforce ordering of edges by IDs
     std::sort(edge_geometries.begin(), edge_geometries.end());
 
-    return edge_geometries;
+    return std::make_pair(edge_geometries, merged_edge_ids);
 }
 
 inline auto findEdge(const IntersectionEdgeGeometries &geometries, const EdgeID &edge)
@@ -496,14 +478,6 @@ double findEdgeBearing(const IntersectionEdgeGeometries &geometries, const EdgeI
 double findEdgeLength(const IntersectionEdgeGeometries &geometries, const EdgeID &edge)
 {
     return findEdge(geometries, edge)->length;
-}
-
-double computeTurnAngle(const IntersectionEdgeGeometries &geometries,
-                        const IntersectionEdge &from,
-                        const IntersectionEdge &to)
-{
-    return util::bearing::angleBetween(findEdgeBearing(geometries, from.edge),
-                                       findEdgeBearing(geometries, to.edge));
 }
 
 template <typename RestrictionsRange>
