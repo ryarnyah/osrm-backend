@@ -66,6 +66,11 @@ class StatisticsHandler final : public IntersectionHandler
                 util::Log() << "  " << std::fixed << std::setprecision(2)
                             << instructionModifierToString(kv.first) << ": " << kv.second << " ("
                             << (kv.second / static_cast<float>(num_modifiers) * 100.) << "%)";
+
+        std::ofstream of("locations.txt");
+        for (auto x : locations)
+            of << std::get<0>(x) << ", " << internalInstructionTypeToString(std::get<1>(x)) << ", "
+               << instructionModifierToString(std::get<2>(x)) << "\n";
     }
 
     bool canProcess(const NodeID, const EdgeID, const Intersection &) const override final
@@ -74,7 +79,7 @@ class StatisticsHandler final : public IntersectionHandler
     }
 
     Intersection
-    operator()(const NodeID, const EdgeID, Intersection intersection) const override final
+    operator()(const NodeID, const EdgeID edge_id, Intersection intersection) const override final
     {
         // Lock histograms updates on a per-intersection basis.
         std::lock_guard<std::mutex> defer{lock};
@@ -91,6 +96,9 @@ class StatisticsHandler final : public IntersectionHandler
 
                 type_hist[type] += 1;
                 modifier_hist[modifier] += 1;
+                locations.insert({coordinates[node_based_graph.GetTarget(edge_id)],
+                                  std::uint8_t(road.instruction.type),
+                                  std::uint8_t(road.instruction.direction_modifier)});
             }
         }
 
@@ -101,6 +109,7 @@ class StatisticsHandler final : public IntersectionHandler
     mutable std::mutex lock;
     mutable std::map<TurnType::Enum, std::uint64_t> type_hist;
     mutable std::map<DirectionModifier::Enum, std::uint64_t> modifier_hist;
+    mutable std::set<std::tuple<util::Coordinate, std::uint8_t, std::uint8_t>> locations;
 };
 
 } // namespace guidance

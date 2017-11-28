@@ -212,6 +212,11 @@ struct Coordinate
                       "coordinate types incompatible");
     }
 
+    bool operator<(const Coordinate &other) const
+    {
+        return std::tie(lon, lat) < std::tie(other.lon, other.lat);
+    }
+
     bool IsValid() const;
     friend bool operator==(const Coordinate lhs, const Coordinate rhs);
     friend bool operator!=(const Coordinate lhs, const Coordinate rhs);
