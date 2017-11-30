@@ -737,7 +737,8 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedEdges(
                             // TODO remove later
                             // Don't include merged edges that have no entry
                             // Always include a U-turn road
-                            const auto is_uturn = std::fabs(turn_angle) < 0.001;
+                            const auto is_uturn =
+                                std::fabs(turn_angle) < std::numeric_limits<double>::epsilon();
                             if (m_node_based_graph.GetEdgeData(outgoing_edge.edge).reversed &&
                                 merged_edge_ids.count(outgoing_edge.edge) != 0 && !is_uturn)
                                 continue;
